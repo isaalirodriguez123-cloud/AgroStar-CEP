@@ -1,0 +1,2571 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgroStat CEP — Control Estadístico de Calidad</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jstat/1.9.6/jstat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  /* ===================== VARIABLES ===================== */
+  :root {
+    --pink-50:  #fff0f5;
+    --pink-100: #ffd6e7;
+    --pink-200: #ffadd2;
+    --pink-300: #ff85c2;
+    --pink-400: #f759ab;
+    --pink-500: #eb2f96;
+    --pink-600: #c41d7f;
+    --black:    #0d0d0d;
+    --black-soft:#1a1a1a;
+    --gray-800: #262626;
+    --gray-700: #404040;
+    --gray-600: #595959;
+    --gray-400: #8c8c8c;
+    --gray-200: #d9d9d9;
+    --gray-100: #f5f5f5;
+    --white:    #ffffff;
+
+    /* Light mode */
+    --bg:         var(--pink-50);
+    --bg-card:    var(--white);
+    --bg-sidebar: var(--pink-100);
+    --text:       var(--black);
+    --text-muted: var(--gray-600);
+    --border:     var(--pink-200);
+    --accent:     var(--pink-500);
+    --accent-dark:var(--pink-600);
+    --input-bg:   var(--white);
+    --shadow:     rgba(235,47,150,0.12);
+    --success:    #52c41a;
+    --warning:    #faad14;
+    --danger:     #ff4d4f;
+    --info:       #1890ff;
+  }
+
+  [data-theme="dark"] {
+    --bg:         #0d0d0d;
+    --bg-card:    #1a1a1a;
+    --bg-sidebar: #111111;
+    --text:       #f5f5f5;
+    --text-muted: #8c8c8c;
+    --border:     #2d2d2d;
+    --accent:     var(--pink-400);
+    --accent-dark:var(--pink-500);
+    --input-bg:   #262626;
+    --shadow:     rgba(247,89,171,0.18);
+  }
+
+  /* ===================== RESET & BASE ===================== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 15px; scroll-behavior: smooth; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    transition: background 0.3s, color 0.3s;
+    overflow-x: hidden;
+  }
+  button { cursor: pointer; font-family: inherit; }
+  input, select, textarea { font-family: inherit; }
+  canvas { max-width: 100%; }
+
+  /* ===================== SIDEBAR ===================== */
+  #sidebar {
+    width: 260px;
+    min-height: 100vh;
+    background: var(--bg-sidebar);
+    border-right: 1.5px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; left: 0;
+    z-index: 100;
+    transition: transform 0.3s, background 0.3s, border 0.3s;
+  }
+  .sidebar-logo {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-logo h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.55rem;
+    color: var(--accent);
+    line-height: 1.1;
+    letter-spacing: -0.5px;
+  }
+  .sidebar-logo p {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+  .nav-section { padding: 18px 16px 8px; }
+  .nav-section-label {
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    padding: 0 8px;
+    margin-bottom: 6px;
+  }
+  .nav-btn {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 10px 12px;
+    background: transparent; border: none;
+    color: var(--text-muted);
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    transition: all 0.18s;
+    text-align: left;
+  }
+  .nav-btn:hover { background: var(--border); color: var(--text); }
+  .nav-btn.active { background: var(--accent); color: white; }
+  .nav-btn .nav-icon { font-size: 1rem; width: 20px; text-align: center; }
+
+  /* ===================== MAIN ===================== */
+  #main {
+    margin-left: 260px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  #topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 32px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 50;
+    transition: background 0.3s;
+  }
+  #topbar h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.25rem;
+    color: var(--text);
+  }
+  .topbar-right { display: flex; align-items: center; gap: 14px; }
+  .theme-toggle {
+    background: var(--border);
+    border: none;
+    border-radius: 50px;
+    padding: 7px 14px;
+    font-size: 0.82rem;
+    color: var(--text);
+    font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+    transition: all 0.2s;
+  }
+  .theme-toggle:hover { background: var(--accent); color: white; }
+  .export-btn {
+    background: var(--accent);
+    border: none; border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: white;
+    transition: background 0.2s;
+  }
+  .export-btn:hover { background: var(--accent-dark); }
+
+  /* ===================== CONTENT ===================== */
+  #content { padding: 32px; flex: 1; }
+  .page { display: none; animation: fadeIn 0.25s ease; }
+  .page.active { display: block; }
+  @keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
+
+  /* ===================== CARDS ===================== */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 16px var(--shadow);
+    transition: background 0.3s, border 0.3s;
+  }
+  .card-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.1rem;
+    margin-bottom: 18px;
+    color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title .badge {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.65rem;
+    background: var(--accent);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 50px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* ===================== GRID ===================== */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+  /* ===================== FORM ELEMENTS ===================== */
+  .form-group { margin-bottom: 16px; }
+  .form-label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  .form-input, .form-select, .form-textarea {
+    width: 100%;
+    padding: 9px 12px;
+    background: var(--input-bg);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.88rem;
+    transition: border-color 0.18s, background 0.3s;
+    outline: none;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(235,47,150,0.12);
+  }
+  .form-textarea { min-height: 80px; resize: vertical; }
+
+  /* ===================== BUTTONS ===================== */
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 20px;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    border: none;
+    transition: all 0.18s;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent-dark); transform: translateY(-1px); }
+  .btn-outline {
+    background: transparent;
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
+  }
+  .btn-outline:hover { background: var(--accent); color: white; }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-sm { padding: 5px 12px; font-size: 0.78rem; }
+  .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+  /* ===================== STATS ROW ===================== */
+  .stat-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 8px var(--shadow);
+    transition: background 0.3s;
+  }
+  .stat-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .stat-val { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 600; color: var(--accent); }
+  .stat-sub { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+
+  /* ===================== TABLE ===================== */
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+  thead tr { background: var(--accent); color: white; }
+  th { padding: 10px 14px; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.6px; }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
+  tbody tr:hover { background: var(--pink-50); }
+  [data-theme="dark"] tbody tr:hover { background: rgba(247,89,171,0.06); }
+  td.mono { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+  .oor { color: var(--danger); font-weight: 700; }
+
+  /* ===================== ALERTS ===================== */
+  .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 0.84rem; border-left: 4px solid; }
+  .alert-info  { background: #e6f4ff; border-color: var(--info); color: #003eb3; }
+  .alert-warn  { background: #fffbe6; border-color: var(--warning); color: #874d00; }
+  .alert-danger{ background: #fff2f0; border-color: var(--danger); color: #820014; }
+  .alert-ok    { background: #f6ffed; border-color: var(--success); color: #135200; }
+  [data-theme="dark"] .alert-info  { background: #111d2c; color: #69c0ff; }
+  [data-theme="dark"] .alert-warn  { background: #2b2111; color: #ffc53d; }
+  [data-theme="dark"] .alert-danger{ background: #2a1215; color: #ff7875; }
+  [data-theme="dark"] .alert-ok    { background: #162312; color: #95de64; }
+
+  /* ===================== DATA INPUT TABLE ===================== */
+  .data-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    gap: 8px;
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 4px;
+  }
+  .data-cell {
+    padding: 7px;
+    background: var(--input-bg);
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    text-align: center;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.18s;
+  }
+  .data-cell:focus { border-color: var(--accent); }
+
+  /* ===================== CHIP ===================== */
+  .chip {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 50px;
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+  .chip-ok     { background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f; }
+  .chip-warn   { background: #fffbe6; color: #d48806; border: 1px solid #ffe58f; }
+  .chip-danger { background: #fff2f0; color: #cf1322; border: 1px solid #ffa39e; }
+  [data-theme="dark"] .chip-ok     { background: #162312; color: #95de64; }
+  [data-theme="dark"] .chip-warn   { background: #2b2111; color: #ffc53d; }
+  [data-theme="dark"] .chip-danger { background: #2a1215; color: #ff7875; }
+
+  /* ===================== DASHBOARD HERO ===================== */
+  .hero-banner {
+    background: linear-gradient(135deg, var(--pink-500) 0%, var(--pink-400) 50%, #ff85c2 100%);
+    border-radius: 16px;
+    padding: 32px 36px;
+    margin-bottom: 28px;
+    color: white;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-banner::before {
+    content: '🌿';
+    position: absolute;
+    right: 36px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 5rem;
+    opacity: 0.25;
+  }
+  .hero-banner h2 { font-family: 'DM Serif Display', serif; font-size: 1.8rem; margin-bottom: 6px; }
+  .hero-banner p  { font-size: 0.9rem; opacity: 0.85; }
+
+  /* ===================== PROGRESS ===================== */
+  .progress-bar { background: var(--border); border-radius: 50px; height: 8px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 50px; background: var(--accent); transition: width 0.4s; }
+
+  /* ===================== TABS ===================== */
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid var(--border); }
+  .tab-btn {
+    padding: 9px 18px;
+    background: none; border: none;
+    font-size: 0.86rem; font-weight: 600;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.18s;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; animation: fadeIn 0.2s ease; }
+
+  /* ===================== NORMALIDAD ===================== */
+  .normal-result { padding: 14px; border-radius: 8px; text-align: center; }
+
+  /* ===================== TOOLTIP ===================== */
+  .tooltip-wrap { position: relative; display: inline-block; }
+  .tooltip-txt {
+    visibility: hidden; opacity: 0;
+    background: var(--black-soft); color: white;
+    font-size: 0.72rem; padding: 5px 10px; border-radius: 6px;
+    position: absolute; bottom: 130%; left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    transition: opacity 0.2s;
+    z-index: 200;
+  }
+  .tooltip-wrap:hover .tooltip-txt { visibility: visible; opacity: 1; }
+
+  /* ===================== RESPONSIVE ===================== */
+  @media (max-width: 900px) {
+    #sidebar { transform: translateX(-260px); }
+    #sidebar.open { transform: translateX(0); }
+    #main { margin-left: 0; }
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    #content { padding: 16px; }
+  }
+
+  /* ===================== MISC ===================== */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  .monospace { font-family: 'JetBrains Mono', monospace; }
+  .text-accent { color: var(--accent); }
+  .text-muted  { color: var(--text-muted); font-size: 0.82rem; }
+  .mt-16 { margin-top: 16px; }
+  .center { text-align: center; }
+  .bold { font-weight: 700; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--pink-300); border-radius: 3px; }
+</style>
+</head>
+<body data-theme="light">
+
+<!-- ===================== SIDEBAR ===================== -->
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <h1>🌿 AgroStat</h1>
+    <p>Control Estadístico CEP</p>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">General</div>
+    <button class="nav-btn active" onclick="showPage('dashboard', this)">
+      <span class="nav-icon">📊</span> Dashboard
+    </button>
+    <button class="nav-btn" onclick="showPage('trazabilidad', this)">
+      <span class="nav-icon">📋</span> Trazabilidad
+    </button>
+    <button class="nav-btn" onclick="showPage('datos', this)">
+      <span class="nav-icon">📥</span> Ingreso de Datos
+    </button>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Variables</div>
+    <button class="nav-btn" onclick="showPage('xr', this)">
+      <span class="nav-icon">📉</span> Gráfico X̄–R
+    </button>
+    <button class="nav-btn" onclick="showPage('xs', this)">
+      <span class="nav-icon">📈</span> Gráfico X̄–S
+    </button>
+    <button class="nav-btn" onclick="showPage('normalidad', this)">
+      <span class="nav-icon">🔔</span> Normalidad
+    </button>
+    <button class="nav-btn" onclick="showPage('capacidad', this)">
+      <span class="nav-icon">⚙️</span> Capacidad (Cp, Cpk…)
+    </button>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Atributos</div>
+    <button class="nav-btn" onclick="showPage('p_np', this)">
+      <span class="nav-icon">🔢</span> Gráfico P / NP
+    </button>
+    <button class="nav-btn" onclick="showPage('c_u', this)">
+      <span class="nav-icon">🔣</span> Gráfico C / U
+    </button>
+    <button class="nav-btn" onclick="showPage('pareto', this)">
+      <span class="nav-icon">📊</span> Pareto
+    </button>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label">Ayuda</div>
+    <button class="nav-btn" onclick="showPage('manual', this)">
+      <span class="nav-icon">📖</span> Manual de Usuario
+    </button>
+  </div>
+</nav>
+
+<!-- ===================== MAIN ===================== -->
+<div id="main">
+  <header id="topbar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button onclick="toggleSidebar()" style="background:none;border:none;font-size:1.2rem;color:var(--text);" title="Menú">☰</button>
+      <h2 id="page-title">Dashboard</h2>
+    </div>
+    <div class="topbar-right">
+      <button class="theme-toggle" onclick="toggleTheme()">
+        <span id="theme-icon">🌙</span> <span id="theme-label">Modo Nocturno</span>
+      </button>
+      <button class="export-btn" onclick="exportarExcel()">⬇ Exportar Excel</button>
+    </div>
+  </header>
+
+  <main id="content">
+
+    <!-- ==================== DASHBOARD ==================== -->
+    <section class="page active" id="page-dashboard">
+      <div class="hero-banner">
+        <h2>Control Estadístico de Calidad</h2>
+        <p>Frutas, Hortalizas &amp; Plantas Medicinales — Universidad del Magdalena 2026-1</p>
+      </div>
+
+      <div class="grid-4" id="dash-stats">
+        <div class="stat-box">
+          <div class="stat-label">Subgrupos registrados</div>
+          <div class="stat-val" id="d-subgrupos">0</div>
+          <div class="stat-sub">datos ingresados</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Producto activo</div>
+          <div class="stat-val" id="d-producto" style="font-size:1rem;margin-top:4px;">—</div>
+          <div class="stat-sub" id="d-variable">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Estado del proceso</div>
+          <div class="stat-val" id="d-estado">—</div>
+          <div class="stat-sub" id="d-estado-sub">Sin datos</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Puntos fuera control</div>
+          <div class="stat-val" id="d-pfc" style="color:var(--danger)">0</div>
+          <div class="stat-sub">en todos los gráficos</div>
+        </div>
+      </div>
+
+      <div class="grid-2 mt-16">
+        <div class="card">
+          <div class="card-title">🌿 Guía Rápida</div>
+          <ol style="padding-left:18px;line-height:2;font-size:0.86rem;color:var(--text-muted)">
+            <li>Completa la <strong>Trazabilidad</strong> (nombre del producto, analista…)</li>
+            <li>Ingresa tus datos en <strong>Ingreso de Datos</strong></li>
+            <li>Genera los <strong>Gráficos de Control</strong> (X̄-R, X̄-S, P, NP, C, U)</li>
+            <li>Verifica la <strong>Normalidad</strong> de los datos</li>
+            <li>Calcula los <strong>Índices de Capacidad</strong> (Cp, Cpk, Pp, Ppk)</li>
+            <li>Construye el <strong>Diagrama de Pareto</strong> para atributos</li>
+            <li><strong>Exporta</strong> los resultados a Excel</li>
+          </ol>
+        </div>
+        <div class="card">
+          <div class="card-title">📐 Herramientas Disponibles <span class="badge">CEP</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:0.83rem;">
+            <div>✅ Gráfico X̄–R</div>
+            <div>✅ Gráfico X̄–S</div>
+            <div>✅ Prueba de Normalidad</div>
+            <div>✅ Cp, Cpk, Pp, Ppk</div>
+            <div>✅ Gráfico P</div>
+            <div>✅ Gráfico NP</div>
+            <div>✅ Gráfico C</div>
+            <div>✅ Gráfico U</div>
+            <div>✅ Diagrama de Pareto</div>
+            <div>✅ Exportar Excel</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📋 Resumen de Trazabilidad</div>
+        <div id="dash-trazabilidad" class="text-muted">No se ha ingresado información de trazabilidad aún. Ve a la sección <strong>Trazabilidad</strong>.</div>
+      </div>
+    </section>
+
+    <!-- ==================== TRAZABILIDAD ==================== -->
+    <section class="page" id="page-trazabilidad">
+      <div class="card">
+        <div class="card-title">📋 Información de Trazabilidad</div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Nombre del Producto</label>
+            <select class="form-select" id="t-producto" onchange="trazChange()">
+              <option value="">Seleccionar…</option>
+              <optgroup label="Frutas">
+                <option>Aguacate</option><option>Banano</option><option>Mango</option>
+                <option>Melón</option><option>Ají topito</option>
+              </optgroup>
+              <optgroup label="Plantas Medicinales">
+                <option>Sábila (Aloe vera)</option><option>Manzanilla</option>
+                <option>Menta</option><option>Toronjil (Melisa)</option>
+                <option>Caléndula</option><option>Eucalipto</option>
+                <option>Romero</option><option>Hierbabuena</option>
+                <option>Limoncillo</option><option>Valeriana</option>
+                <option>Cilantro</option>
+              </optgroup>
+              <option value="otro">Otro…</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nombre del Producto (manual)</label>
+            <input type="text" class="form-input" id="t-producto-otro" placeholder="Si eligió 'Otro…'" oninput="trazChange()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tipo de Variable / Atributo</label>
+            <select class="form-select" id="t-variable" onchange="trazChange()">
+              <option value="">Seleccionar…</option>
+              <optgroup label="📏 Variables Continuas — Morfológicas">
+                <option>Altura de la planta (cm)</option>
+                <option>Longitud de hojas (cm)</option>
+                <option>Ancho de hojas (cm)</option>
+                <option>Diámetro del tallo (mm)</option>
+                <option>Área foliar (cm²)</option>
+              </optgroup>
+              <optgroup label="⚖️ Variables Continuas — Productivas">
+                <option>Peso fresco (g)</option>
+                <option>Peso seco (g)</option>
+                <option>Rendimiento del extracto (%)</option>
+                <option>Rendimiento por planta (kg)</option>
+                <option>Porcentaje de materia seca (%)</option>
+              </optgroup>
+              <optgroup label="🧪 Variables Continuas — Fisicoquímicas">
+                <option>pH</option>
+                <option>Grados Brix (°Bx)</option>
+                <option>Contenido de humedad (%)</option>
+                <option>Contenido de aceites esenciales (%)</option>
+                <option>Contenido de principios activos (mg/g)</option>
+                <option>Contenido de cenizas (%)</option>
+                <option>Actividad de agua (aw)</option>
+                <option>Temperatura de secado (°C)</option>
+                <option>Tiempo de secado (horas)</option>
+                <option>Firmeza</option>
+                <option>Capacidad antioxidante</option>
+                <option>Nivel de alcaloides (mg/g)</option>
+                <option>Nivel de flavonoides (mg/g)</option>
+              </optgroup>
+              <optgroup label="🌿 Variables Continuas — Fisiológicas / Ambientales">
+                <option>Contenido de clorofila</option>
+                <option>Tasa de crecimiento</option>
+                <option>Temperatura ambiente (°C)</option>
+                <option>Humedad relativa (%)</option>
+                <option>pH del suelo</option>
+              </optgroup>
+              <optgroup label="❌ Atributos Discretos — Sanidad">
+                <option>Presencia de plagas</option>
+                <option>Presencia de enfermedades</option>
+                <option>Daños mecánicos</option>
+                <option>Contaminación por hongos</option>
+                <option>Presencia de material extraño</option>
+                <option>Presencia de insectos</option>
+                <option>Presencia de malezas</option>
+              </optgroup>
+              <optgroup label="🎨 Atributos Discretos — Calidad sensorial">
+                <option>Uniformidad del color</option>
+                <option>Aroma característico</option>
+                <option>Defectos de color</option>
+                <option>Golpes o magulladuras</option>
+                <option>Frutos podridos</option>
+                <option>Presencia de manchas</option>
+              </optgroup>
+              <optgroup label="📦 Atributos Discretos — Comercial / BPA / BPM">
+                <option>Pureza del lote</option>
+                <option>Etiquetado correcto</option>
+                <option>Empaque adecuado</option>
+                <option>Nivel de limpieza</option>
+                <option>Cumplimiento BPA</option>
+                <option>Cumplimiento BPM</option>
+              </optgroup>
+              <option value="otro">Otra (especificar)…</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Variable personalizada (si eligió "Otra")</label>
+            <input type="text" class="form-input" id="t-variable-otro" placeholder="Escribe la variable…" oninput="trazChange()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Unidad de Medida</label>
+            <input type="text" class="form-input" id="t-unidad" placeholder="g, cm, %, pH…" oninput="trazChange()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nombre del Analista</label>
+            <input type="text" class="form-input" id="t-analista" placeholder="Nombre completo" oninput="trazChange()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Fecha / Hora de Ingreso</label>
+            <input type="datetime-local" class="form-input" id="t-fecha" oninput="trazChange()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Número de Muestras por Subgrupo (n)</label>
+            <input type="number" class="form-input" id="t-n" value="5" min="2" max="25" oninput="trazChange()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Número de Subgrupos (k)</label>
+            <input type="number" class="form-input" id="t-k" value="25" min="20" max="100" oninput="trazChange()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Lote / Código de Producción</label>
+            <input type="text" class="form-input" id="t-lote" placeholder="LOT-2026-001" oninput="trazChange()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Observaciones</label>
+            <textarea class="form-textarea" id="t-obs" placeholder="Condiciones de muestreo, etc." oninput="trazChange()"></textarea>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" onclick="guardarTraz()">💾 Guardar Trazabilidad</button>
+          <button class="btn btn-outline" onclick="limpiarTraz()">🗑 Limpiar</button>
+        </div>
+        <div id="traz-msg" style="margin-top:14px;"></div>
+      </div>
+    </section>
+
+    <!-- ==================== INGRESO DE DATOS ==================== -->
+    <section class="page" id="page-datos">
+      <div class="card">
+        <div class="card-title">📥 Ingreso de Datos por Subgrupos</div>
+        <div class="alert alert-info">
+          Ingresa los valores por subgrupo (filas). El número de subgrupos y tamaño de muestra se definen en <strong>Trazabilidad</strong>.
+          Mínimo <strong>25 subgrupos</strong> para variables y <strong>20 subgrupos</strong> para atributos.
+        </div>
+
+        <!-- TABS de método de carga -->
+        <div class="tabs" style="margin-bottom:16px;">
+          <button class="tab-btn active" onclick="switchTabDatos('tab-texto', this)">✏️ Texto / Manual</button>
+          <button class="tab-btn" onclick="switchTabDatos('tab-excel', this)">📊 Desde Excel / CSV</button>
+        </div>
+
+        <!-- TAB 1: Texto -->
+        <div id="datos-tab-texto" class="tab-pane active">
+          <div class="grid-2" style="margin-bottom:16px;">
+            <div>
+              <label class="form-label">Pegar datos (separados por coma o espacio)</label>
+              <textarea class="form-textarea" id="paste-area" placeholder="Pega aquí tus datos y presiona 'Cargar datos'&#10;Ejemplo fila por subgrupo:&#10;12.3, 11.8, 12.1, 11.9, 12.4&#10;13.1, 12.5, 12.8, 12.2, 12.9&#10;..." style="min-height:120px;"></textarea>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div>
+                <label class="form-label">Tipo de datos</label>
+                <select class="form-select" id="tipo-datos" onchange="cambiarTipoDatos()">
+                  <option value="variables">Variables (continuas)</option>
+                  <option value="atributos">Atributos (discretos)</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Generar datos de ejemplo</label>
+                <button class="btn btn-outline" onclick="generarEjemplo()">🎲 Generar Ejemplo</button>
+              </div>
+              <div>
+                <label class="form-label">Cargar desde área de texto</label>
+                <button class="btn btn-primary" onclick="cargarDesdeTexto()">📤 Cargar Datos</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: Excel / CSV -->
+        <div id="datos-tab-excel" class="tab-pane">
+          <div class="alert alert-info">
+            <strong>📊 Carga desde Excel o CSV.</strong> El archivo debe tener los datos organizados así:<br>
+            • <strong>Variables:</strong> cada fila = un subgrupo; cada columna = una observación (X1, X2…)<br>
+            • <strong>Atributos:</strong> una columna con los conteos/defectuosos por subgrupo<br>
+            • Formatos aceptados: <strong>.xlsx, .xls, .csv</strong>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:16px;">
+            <div>
+              <label class="form-label">Seleccionar archivo Excel / CSV</label>
+              <div style="border:2px dashed var(--border);border-radius:10px;padding:28px;text-align:center;cursor:pointer;transition:border-color 0.2s;background:var(--input-bg);"
+                   id="drop-zone"
+                   ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
+                   ondragleave="this.style.borderColor='var(--border)'"
+                   ondrop="handleDrop(event)">
+                <div style="font-size:2.5rem;">📁</div>
+                <div style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">
+                  Arrastra tu archivo aquí<br>o haz clic para seleccionar
+                </div>
+                <input type="file" id="excel-file" accept=".xlsx,.xls,.csv"
+                       style="position:absolute;width:1px;height:1px;opacity:0;"
+                       onchange="cargarArchivoExcel(this.files[0])">
+                <button class="btn btn-outline btn-sm" style="margin-top:12px;"
+                        onclick="document.getElementById('excel-file').click()">
+                  Seleccionar archivo
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="form-label">Configuración del archivo</label>
+              <div class="form-group">
+                <label class="form-label">Tipo de datos en el archivo</label>
+                <select class="form-select" id="excel-tipo">
+                  <option value="variables">Variables (continuas) — filas = subgrupos</option>
+                  <option value="atributos">Atributos (discretos) — una columna</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">¿El archivo tiene encabezados?</label>
+                <select class="form-select" id="excel-header">
+                  <option value="si">Sí, primera fila es encabezado</option>
+                  <option value="no">No, empezar desde fila 1</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Separador (solo para CSV)</label>
+                <select class="form-select" id="csv-sep">
+                  <option value=",">Coma (,)</option>
+                  <option value=";">Punto y coma (;)</option>
+                  <option value="\t">Tabulación</option>
+                </select>
+              </div>
+              <div id="excel-preview-info" style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;"></div>
+            </div>
+          </div>
+
+          <!-- Vista previa del archivo -->
+          <div id="excel-preview-wrap" style="display:none;">
+            <label class="form-label">Vista previa del archivo</label>
+            <div id="excel-preview" class="table-wrap" style="max-height:200px;overflow:auto;margin-bottom:12px;"></div>
+            <button class="btn btn-primary" onclick="confirmarCargaExcel()">✅ Confirmar y Cargar Datos</button>
+          </div>
+        </div>
+
+        <hr class="divider">
+        <div id="tabla-datos-wrap">
+          <div id="tabla-datos" class="table-wrap"></div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-outline" onclick="agregarSubgrupo()">➕ Agregar Subgrupo</button>
+          <button class="btn btn-danger btn-sm" onclick="limpiarDatos()">🗑 Limpiar Todo</button>
+        </div>
+        <div id="datos-msg" style="margin-top:12px;"></div>
+      </div>
+    </section>
+
+    <!-- ==================== GRAFICO XR ==================== -->
+    <section class="page" id="page-xr">
+      <div class="card">
+        <div class="card-title">📉 Gráfico X̄ – R <span class="badge">Variables</span></div>
+        <div class="alert alert-info">
+          Monitorea la <strong>media (X̄)</strong> y el <strong>rango (R)</strong> de cada subgrupo.
+          Usa las constantes A₂, D₃, D₄ según el tamaño de muestra.
+        </div>
+        <div class="grid-3" style="margin-bottom:16px;">
+          <div class="form-group">
+            <label class="form-label">LSE (Límite Sup. Especificación)</label>
+            <input type="number" class="form-input" id="xr-lse" placeholder="Ej: 15.0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label">LIE (Límite Inf. Especificación)</label>
+            <input type="number" class="form-input" id="xr-lie" placeholder="Ej: 10.0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Objetivo / Valor nominal</label>
+            <input type="number" class="form-input" id="xr-obj" placeholder="Ej: 12.5" step="0.01">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="calcXR()">▶ Calcular y Graficar</button>
+      </div>
+
+      <div id="xr-resultados" style="display:none;">
+        <div class="grid-4" id="xr-stats"></div>
+        <div class="card mt-16">
+          <div class="card-title">Gráfico X̄ (Promedios)</div>
+          <canvas id="chart-xbar" height="120"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title">Gráfico R (Rangos)</div>
+          <canvas id="chart-r" height="100"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title">📋 Tabla de Resultados</div>
+          <div id="xr-tabla" class="table-wrap"></div>
+        </div>
+        <div id="xr-alertas"></div>
+      </div>
+    </section>
+
+    <!-- ==================== GRAFICO XS ==================== -->
+    <section class="page" id="page-xs">
+      <div class="card">
+        <div class="card-title">📈 Gráfico X̄ – S <span class="badge">Variables</span></div>
+        <div class="alert alert-info">
+          Monitorea la <strong>media (X̄)</strong> y la <strong>desviación estándar (S)</strong>. Más preciso que X̄-R para n > 10.
+        </div>
+        <div class="grid-3" style="margin-bottom:16px;">
+          <div class="form-group">
+            <label class="form-label">LSE</label>
+            <input type="number" class="form-input" id="xs-lse" placeholder="Ej: 15.0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label">LIE</label>
+            <input type="number" class="form-input" id="xs-lie" placeholder="Ej: 10.0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Objetivo</label>
+            <input type="number" class="form-input" id="xs-obj" placeholder="Ej: 12.5" step="0.01">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="calcXS()">▶ Calcular y Graficar</button>
+      </div>
+
+      <div id="xs-resultados" style="display:none;">
+        <div class="grid-4" id="xs-stats"></div>
+        <div class="card mt-16">
+          <div class="card-title">Gráfico X̄</div>
+          <canvas id="chart-xbar-s" height="120"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title">Gráfico S</div>
+          <canvas id="chart-s" height="100"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title">📋 Tabla</div>
+          <div id="xs-tabla" class="table-wrap"></div>
+        </div>
+        <div id="xs-alertas"></div>
+      </div>
+    </section>
+
+    <!-- ==================== NORMALIDAD ==================== -->
+    <section class="page" id="page-normalidad">
+      <div class="card">
+        <div class="card-title">🔔 Prueba de Normalidad</div>
+        <div class="alert alert-info">
+          Se realiza la prueba de <strong>Shapiro-Wilk</strong> (aproximación) y se grafica el histograma con la curva normal teórica y el gráfico Q-Q.
+        </div>
+        <button class="btn btn-primary" onclick="calcNormalidad()">▶ Analizar Normalidad</button>
+      </div>
+
+      <div id="norm-resultados" style="display:none;">
+        <div id="norm-resultado-box" class="card"></div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Histograma + Curva Normal</div>
+            <canvas id="chart-hist" height="150"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-title">Gráfico Q-Q (Cuantil-Cuantil)</div>
+            <canvas id="chart-qq" height="150"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">📊 Estadísticas Descriptivas</div>
+          <div class="grid-4" id="norm-stats"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== CAPACIDAD ==================== -->
+    <section class="page" id="page-capacidad">
+      <div class="card">
+        <div class="card-title">⚙️ Índices de Capacidad del Proceso <span class="badge">Cp · Cpk · Pp · Ppk</span></div>
+        <div class="alert alert-info">
+          <strong>Cp / Cpk:</strong> Corto plazo (usa σ̂ = R̄/d₂). <strong>Pp / Ppk:</strong> Largo plazo (usa σ total).
+          Valor mínimo aceptable: <strong>1.33</strong> | Óptimo: <strong>≥ 1.67</strong>
+        </div>
+        <div class="grid-3">
+          <div class="form-group">
+            <label class="form-label">LSE (Límite Superior de Especificación)</label>
+            <input type="number" class="form-input" id="cap-lse" placeholder="Ej: 15.0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label">LIE (Límite Inferior de Especificación)</label>
+            <input type="number" class="form-input" id="cap-lie" placeholder="Ej: 10.0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Objetivo (Nominal)</label>
+            <input type="number" class="form-input" id="cap-obj" placeholder="Ej: 12.5" step="0.01">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="calcCapacidad()">▶ Calcular Capacidad</button>
+      </div>
+
+      <div id="cap-resultados" style="display:none;">
+        <div class="grid-4" id="cap-indices"></div>
+        <div class="card mt-16">
+          <div class="card-title">📊 Distribución del Proceso vs Especificaciones</div>
+          <canvas id="chart-cap" height="130"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title">🧮 Interpretación</div>
+          <div id="cap-interpretacion"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== P / NP ==================== -->
+    <section class="page" id="page-p_np">
+      <div class="card">
+        <div class="card-title">🔢 Gráficos P / NP <span class="badge">Atributos</span></div>
+
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab('pnp', 'tab-p', this)">Gráfico P (proporción)</button>
+          <button class="tab-btn" onclick="switchTab('pnp', 'tab-np', this)">Gráfico NP (número)</button>
+        </div>
+
+        <div class="tab-pane active" id="pnp-tab-p">
+          <div class="alert alert-info">
+            <strong>Gráfico P:</strong> Fracción de producto no conforme. Usa distribución Binomial.
+            Tamaño de subgrupo puede variar.
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Número de defectuosos por subgrupo (separados por comas)</label>
+              <textarea class="form-textarea" id="p-defectuosos" placeholder="Ej: 3, 5, 2, 7, 4, 1, 6, 3, 2, 5, 4, 3, 6, 2, 1, 4, 5, 3, 2, 4, 3, 5, 2, 1, 3"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tamaño de cada subgrupo (n) — uno por subgrupo o uno para todos</label>
+              <textarea class="form-textarea" id="p-n" placeholder="Ej: 50 (constante) o 50, 55, 48, 50, 52…"></textarea>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="calcP()">▶ Calcular Gráfico P</button>
+          <div id="p-resultados" style="display:none;margin-top:20px;">
+            <div class="grid-4" id="p-stats"></div>
+            <div class="card mt-16">
+              <div class="card-title">Gráfico P</div>
+              <canvas id="chart-p" height="120"></canvas>
+            </div>
+            <div class="card">
+              <div id="p-tabla" class="table-wrap"></div>
+            </div>
+            <div id="p-alertas"></div>
+          </div>
+        </div>
+
+        <div class="tab-pane" id="pnp-tab-np">
+          <div class="alert alert-info">
+            <strong>Gráfico NP:</strong> Número de unidades defectuosas. Tamaño de subgrupo <strong>constante</strong>.
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Defectuosos por subgrupo (separados por comas)</label>
+              <textarea class="form-textarea" id="np-defectuosos" placeholder="Ej: 3, 5, 2, 7, 4, 1, 6, 3, 2, 5, 4, 3, 6, 2, 1, 4, 5, 3, 2, 4, 3, 5, 2, 1, 3"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tamaño de subgrupo (n) — constante</label>
+              <input type="number" class="form-input" id="np-n" value="50" min="20">
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="calcNP()">▶ Calcular Gráfico NP</button>
+          <div id="np-resultados" style="display:none;margin-top:20px;">
+            <div class="grid-4" id="np-stats"></div>
+            <div class="card mt-16">
+              <div class="card-title">Gráfico NP</div>
+              <canvas id="chart-np" height="120"></canvas>
+            </div>
+            <div id="np-alertas"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== C / U ==================== -->
+    <section class="page" id="page-c_u">
+      <div class="card">
+        <div class="card-title">🔣 Gráficos C / U <span class="badge">Atributos</span></div>
+
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab('cu', 'tab-c', this)">Gráfico C (defectos totales)</button>
+          <button class="tab-btn" onclick="switchTab('cu', 'tab-u', this)">Gráfico U (defectos por unidad)</button>
+        </div>
+
+        <div class="tab-pane active" id="cu-tab-c">
+          <div class="alert alert-info">
+            <strong>Gráfico C:</strong> Número de defectos u ocurrencias totales. Usa distribución de Poisson. Área de oportunidad <strong>constante</strong>.
+          </div>
+          <div class="form-group">
+            <label class="form-label">Número de defectos por subgrupo (separados por comas)</label>
+            <textarea class="form-textarea" id="c-defectos" placeholder="Ej: 3, 5, 2, 7, 4, 1, 6, 3, 2, 5, 4, 3, 6, 2, 1, 4, 5, 3, 2, 4, 3, 5, 2, 1, 3"></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="calcC()">▶ Calcular Gráfico C</button>
+          <div id="c-resultados" style="display:none;margin-top:20px;">
+            <div class="grid-4" id="c-stats"></div>
+            <div class="card mt-16">
+              <div class="card-title">Gráfico C</div>
+              <canvas id="chart-c" height="120"></canvas>
+            </div>
+            <div id="c-alertas"></div>
+          </div>
+        </div>
+
+        <div class="tab-pane" id="cu-tab-u">
+          <div class="alert alert-info">
+            <strong>Gráfico U:</strong> Defectos por unidad. Área de oportunidad puede variar.
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Número de defectos por subgrupo</label>
+              <textarea class="form-textarea" id="u-defectos" placeholder="Ej: 15, 22, 10, 30, 18, 5, 25, 12, 9, 20, 16, 13, 24, 8, 4, 17, 21, 14, 9, 18, 12, 20, 8, 5, 13"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Unidades inspeccionadas por subgrupo (n)</label>
+              <textarea class="form-textarea" id="u-n" placeholder="Ej: 10 (constante) o 10, 12, 8, 10, 11…"></textarea>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="calcU()">▶ Calcular Gráfico U</button>
+          <div id="u-resultados" style="display:none;margin-top:20px;">
+            <div class="grid-4" id="u-stats"></div>
+            <div class="card mt-16">
+              <div class="card-title">Gráfico U</div>
+              <canvas id="chart-u" height="120"></canvas>
+            </div>
+            <div id="u-alertas"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== PARETO ==================== -->
+    <section class="page" id="page-pareto">
+      <div class="card">
+        <div class="card-title">📊 Diagrama de Pareto</div>
+        <div class="alert alert-info">
+          El Principio de Pareto (80/20): aproximadamente el <strong>80% de los problemas</strong> provienen del <strong>20% de las causas</strong>.
+        </div>
+        <div id="pareto-rows">
+          <div class="grid-2" style="gap:10px;margin-bottom:8px;font-weight:600;font-size:0.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;">
+            <span>Tipo de Defecto / Causa</span><span>Frecuencia</span>
+          </div>
+          <!-- filas generadas por JS -->
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-outline btn-sm" onclick="addParetoRow()">➕ Agregar Defecto</button>
+          <button class="btn btn-primary" onclick="calcPareto()">▶ Generar Pareto</button>
+          <button class="btn btn-outline btn-sm" onclick="cargarEjemploPareto()">🎲 Ejemplo</button>
+        </div>
+      </div>
+
+      <div id="pareto-resultados" style="display:none;">
+        <div class="card">
+          <div class="card-title">Diagrama de Pareto</div>
+          <canvas id="chart-pareto" height="160"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title">📋 Tabla de Pareto</div>
+          <div id="pareto-tabla" class="table-wrap"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== MANUAL DE USUARIO ==================== -->
+    <section class="page" id="page-manual">
+
+      <div class="hero-banner" style="background:linear-gradient(135deg,#c41d7f,#eb2f96,#f759ab);">
+        <h2>📖 Manual de Usuario — AgroStat CEP</h2>
+        <p>Guía completa de uso de cada sección de la aplicación</p>
+      </div>
+
+      <!-- ÍNDICE -->
+      <div class="card">
+        <div class="card-title">📑 Índice</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.87rem;">
+          <a href="#man-dash"   style="color:var(--accent);text-decoration:none;">1. Dashboard</a>
+          <a href="#man-traz"   style="color:var(--accent);text-decoration:none;">2. Trazabilidad</a>
+          <a href="#man-datos"  style="color:var(--accent);text-decoration:none;">3. Ingreso de Datos</a>
+          <a href="#man-xr"    style="color:var(--accent);text-decoration:none;">4. Gráfico X̄–R</a>
+          <a href="#man-xs"    style="color:var(--accent);text-decoration:none;">5. Gráfico X̄–S</a>
+          <a href="#man-norm"  style="color:var(--accent);text-decoration:none;">6. Normalidad</a>
+          <a href="#man-cap"   style="color:var(--accent);text-decoration:none;">7. Capacidad del Proceso</a>
+          <a href="#man-pnp"   style="color:var(--accent);text-decoration:none;">8. Gráficos P / NP</a>
+          <a href="#man-cu"    style="color:var(--accent);text-decoration:none;">9. Gráficos C / U</a>
+          <a href="#man-pareto" style="color:var(--accent);text-decoration:none;">10. Diagrama de Pareto</a>
+          <a href="#man-export" style="color:var(--accent);text-decoration:none;">11. Exportar Excel</a>
+          <a href="#man-formulas" style="color:var(--accent);text-decoration:none;">12. Referencia de Fórmulas</a>
+        </div>
+      </div>
+
+      <!-- 1. DASHBOARD -->
+      <div class="card" id="man-dash">
+        <div class="card-title">1. 📊 Dashboard</div>
+        <div class="alert alert-info">El Dashboard es la pantalla de inicio. Muestra el estado general del sistema.</div>
+        <p style="font-size:0.87rem;line-height:1.9;color:var(--text);">
+          <strong>¿Qué muestra?</strong><br>
+          • <strong>Subgrupos registrados:</strong> cuántos subgrupos de datos hay cargados.<br>
+          • <strong>Producto activo:</strong> el producto y variable seleccionados en Trazabilidad.<br>
+          • <strong>Estado del proceso:</strong> indica si hay datos cargados.<br>
+          • <strong>Resumen de Trazabilidad:</strong> muestra los metadatos del estudio actual.<br>
+          • <strong>Guía Rápida:</strong> pasos recomendados para usar la aplicación de inicio a fin.<br><br>
+          <strong>¿Cómo usarlo?</strong><br>
+          No se requiere ninguna acción aquí. Es un panel informativo. Comienza siempre por
+          la sección <strong>Trazabilidad</strong>.
+        </p>
+      </div>
+
+      <!-- 2. TRAZABILIDAD -->
+      <div class="card" id="man-traz">
+        <div class="card-title">2. 📋 Trazabilidad</div>
+        <div class="alert alert-warn">⚠️ Completa esta sección ANTES de ingresar datos. Define el contexto del estudio.</div>
+        <p style="font-size:0.87rem;line-height:1.9;">
+          <strong>Campos a completar:</strong>
+        </p>
+        <div class="table-wrap" style="margin-top:10px;">
+          <table>
+            <thead><tr><th>Campo</th><th>Descripción</th><th>Ejemplo</th></tr></thead>
+            <tbody>
+              <tr><td>Nombre del Producto</td><td>Selecciona del desplegable o escribe uno manual</td><td>Mango, Menta</td></tr>
+              <tr><td>Tipo de Variable</td><td>La característica de calidad que vas a medir</td><td>Peso fresco (g)</td></tr>
+              <tr><td>Unidad de Medida</td><td>Unidad correspondiente a la variable</td><td>g, cm, %, pH</td></tr>
+              <tr><td>Nombre del Analista</td><td>Persona responsable del muestreo</td><td>Juan Pérez</td></tr>
+              <tr><td>Fecha / Hora</td><td>Momento de inicio del estudio</td><td>2026-05-20 08:00</td></tr>
+              <tr><td>n (tamaño subgrupo)</td><td>Observaciones por subgrupo (recomendado: 4–5)</td><td>5</td></tr>
+              <tr><td>k (número subgrupos)</td><td>Mínimo 25 para variables, 20 para atributos</td><td>25</td></tr>
+              <tr><td>Lote</td><td>Código del lote o producción estudiada</td><td>LOT-2026-001</td></tr>
+              <tr><td>Observaciones</td><td>Condiciones especiales del muestreo</td><td>Muestreo matutino</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:0.87rem;margin-top:14px;line-height:1.9;">
+          Haz clic en <strong>💾 Guardar Trazabilidad</strong> para confirmar. El resumen aparecerá en el Dashboard.
+        </p>
+      </div>
+
+      <!-- 3. INGRESO DE DATOS -->
+      <div class="card" id="man-datos">
+        <div class="card-title">3. 📥 Ingreso de Datos</div>
+        <div class="alert alert-info">Hay <strong>dos métodos</strong> para ingresar datos: texto manual y carga de Excel/CSV.</div>
+
+        <p style="font-size:0.87rem;font-weight:700;margin-bottom:8px;">Método 1 — Texto / Manual:</p>
+        <ol style="font-size:0.87rem;line-height:2;padding-left:20px;">
+          <li>Selecciona <strong>Tipo de datos</strong>: Variables (continuas) o Atributos (discretos).</li>
+          <li>En el área de texto, escribe o pega los datos. <br>
+              • Para <strong>variables</strong>: cada fila es un subgrupo, valores separados por coma o espacio.<br>
+              &nbsp;&nbsp;&nbsp;<em>Ejemplo: <code>12.3, 11.8, 12.1, 11.9, 12.4</code> (subgrupo 1)</em><br>
+              • Para <strong>atributos</strong>: una sola fila con los conteos separados por coma.<br>
+              &nbsp;&nbsp;&nbsp;<em>Ejemplo: <code>3, 5, 2, 7, 4, 1, 6, 3</code></em></li>
+          <li>Haz clic en <strong>📤 Cargar Datos</strong>.</li>
+          <li>Verifica la tabla generada abajo. Mostrará X̄ y R por subgrupo.</li>
+          <li>Usa <strong>🎲 Generar Ejemplo</strong> si quieres probar con datos simulados.</li>
+        </ol>
+
+        <p style="font-size:0.87rem;font-weight:700;margin-top:16px;margin-bottom:8px;">Método 2 — Excel / CSV:</p>
+        <ol style="font-size:0.87rem;line-height:2;padding-left:20px;">
+          <li>Prepara tu archivo Excel (.xlsx / .xls) o CSV con los datos organizados:<br>
+              • <strong>Variables:</strong> fila 1 = encabezados (X1, X2…), filas siguientes = subgrupos.<br>
+              • <strong>Atributos:</strong> una columna con los valores por subgrupo.</li>
+          <li>Ve a la pestaña <strong>📊 Desde Excel / CSV</strong>.</li>
+          <li>Arrastra el archivo al área indicada o haz clic en <strong>Seleccionar archivo</strong>.</li>
+          <li>Configura si el archivo tiene encabezados y el tipo de datos.</li>
+          <li>Revisa la <strong>Vista Previa</strong> para confirmar que los datos se leyeron bien.</li>
+          <li>Haz clic en <strong>✅ Confirmar y Cargar Datos</strong>.</li>
+        </ol>
+      </div>
+
+      <!-- 4. XR -->
+      <div class="card" id="man-xr">
+        <div class="card-title">4. 📉 Gráfico X̄ – R</div>
+        <div class="alert alert-info">Controla la <strong>media</strong> y la <strong>dispersión (rango)</strong> del proceso. Ideal para n ≤ 10.</div>
+        <p style="font-size:0.87rem;line-height:2;">
+          <strong>Pasos:</strong><br>
+          1. Asegúrate de tener datos cargados (variables continuas, mínimo 25 subgrupos).<br>
+          2. Ingresa el <strong>LSE</strong> (Límite Superior de Especificación) y <strong>LIE</strong> (Límite Inferior), si los conoces.<br>
+          3. Ingresa el <strong>Objetivo</strong> (valor nominal deseado), opcional.<br>
+          4. Haz clic en <strong>▶ Calcular y Graficar</strong>.<br><br>
+          <strong>Cómo interpretar:</strong><br>
+          • Los puntos <strong style="color:#ff4d4f">rojos</strong> = fuera de los límites de control (causas especiales).<br>
+          • <strong>LSC / LIC</strong> = Límites de Control (estadísticos, ≠ especificaciones).<br>
+          • <strong>Prueba 1:</strong> 1 punto fuera de ±3σ → causa especial inmediata.<br>
+          • <strong>Prueba 2:</strong> 9 puntos consecutivos del mismo lado de la línea central → posible desplazamiento.<br>
+          • <strong>Prueba 3:</strong> 6 puntos consecutivos en tendencia → proceso moviéndose.<br>
+          • Si ambos gráficos (X̄ y R) están bajo control → proceso estable.<br><br>
+          <strong>Fórmulas clave:</strong><br>
+          &nbsp;&nbsp;LSC(X̄) = X̄̄ + A₂ · R̄ &nbsp;|&nbsp; LIC(X̄) = X̄̄ − A₂ · R̄<br>
+          &nbsp;&nbsp;LSC(R) = D₄ · R̄ &nbsp;|&nbsp; LIC(R) = D₃ · R̄
+        </p>
+      </div>
+
+      <!-- 5. XS -->
+      <div class="card" id="man-xs">
+        <div class="card-title">5. 📈 Gráfico X̄ – S</div>
+        <div class="alert alert-info">Controla la media y la <strong>desviación estándar (S)</strong>. Más preciso para n > 10.</div>
+        <p style="font-size:0.87rem;line-height:2;">
+          <strong>Cuándo usar X̄–S vs X̄–R:</strong><br>
+          • Usa <strong>X̄–R</strong> cuando n ≤ 10 (más simple de calcular manualmente).<br>
+          • Usa <strong>X̄–S</strong> cuando n > 10 (S es más precisa que R para muestras grandes).<br><br>
+          <strong>Pasos:</strong> igual que X̄–R. Ingresa LSE, LIE, objetivo y haz clic en ▶ Calcular.<br><br>
+          <strong>Fórmulas:</strong><br>
+          &nbsp;&nbsp;LSC(X̄) = X̄̄ + A₃ · S̄ &nbsp;|&nbsp; LSC(S) = B₄ · S̄<br>
+          &nbsp;&nbsp;LIC(X̄) = X̄̄ − A₃ · S̄ &nbsp;|&nbsp; LIC(S) = B₃ · S̄
+        </p>
+      </div>
+
+      <!-- 6. NORMALIDAD -->
+      <div class="card" id="man-norm">
+        <div class="card-title">6. 🔔 Prueba de Normalidad</div>
+        <div class="alert alert-info">Verifica si los datos siguen una distribución normal. Requisito para Cp, Cpk, Pp, Ppk.</div>
+        <p style="font-size:0.87rem;line-height:2;">
+          <strong>Pasos:</strong><br>
+          1. Carga tus datos de variables continuas.<br>
+          2. Haz clic en <strong>▶ Analizar Normalidad</strong>.<br><br>
+          <strong>Resultados que obtendrás:</strong><br>
+          • <strong>Estadístico W (Shapiro-Wilk):</strong> cercano a 1 = más normal. Rango [0, 1].<br>
+          • <strong>Valor-p:</strong> si p ≥ 0.05 → <span style="color:var(--success)">datos normales (no rechazar H₀)</span>.<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; si p &lt; 0.05 → <span style="color:var(--danger)">datos NO normales (rechazar H₀)</span>.<br>
+          • <strong>Histograma:</strong> barras de frecuencia + curva normal teórica superpuesta.<br>
+          • <strong>Gráfico Q-Q:</strong> si los puntos siguen la línea azul → normalidad confirmada.<br>
+          • <strong>Estadísticas descriptivas:</strong> media, desviación, mediana, asimetría, curtosis.<br><br>
+          <strong>Interpretación de asimetría:</strong><br>
+          &nbsp;&nbsp; = 0 → Simétrica | &gt; 0 → Cola hacia la derecha | &lt; 0 → Cola hacia la izquierda
+        </p>
+      </div>
+
+      <!-- 7. CAPACIDAD -->
+      <div class="card" id="man-cap">
+        <div class="card-title">7. ⚙️ Capacidad del Proceso</div>
+        <div class="alert alert-warn">⚠️ Verifica primero que el proceso esté bajo control (gráficos X̄–R o X̄–S) y que los datos sean normales.</div>
+        <p style="font-size:0.87rem;line-height:2;">
+          <strong>Pasos:</strong><br>
+          1. Ingresa <strong>LSE</strong> y <strong>LIE</strong> (especificaciones del cliente/proceso). Obligatorios.<br>
+          2. Ingresa el <strong>Objetivo</strong> (valor nominal). Opcional.<br>
+          3. Haz clic en <strong>▶ Calcular Capacidad</strong>.<br><br>
+          <strong>Índices y su significado:</strong>
+        </p>
+        <div class="table-wrap" style="margin-top:10px;">
+          <table>
+            <thead><tr><th>Índice</th><th>¿Qué mide?</th><th>Fórmula</th><th>Interpretación</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Cp</strong></td><td>Capacidad potencial (corto plazo)</td><td>(LSE−LIE) / 6σ̂</td><td>Ancho de tolerancia vs variación del proceso</td></tr>
+              <tr><td><strong>Cpk</strong></td><td>Capacidad real centrada (c.p.)</td><td>min[(LSE−X̄)/3σ̂, (X̄−LIE)/3σ̂]</td><td>Indica si el proceso está centrado</td></tr>
+              <tr><td><strong>Pp</strong></td><td>Desempeño largo plazo</td><td>(LSE−LIE) / 6σ_total</td><td>Variación total incluyendo deriva</td></tr>
+              <tr><td><strong>Ppk</strong></td><td>Desempeño real l.p.</td><td>min[(LSE−X̄)/3σ_t, (X̄−LIE)/3σ_t]</td><td>Fotografía real del proceso</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="grid-3" style="margin-top:14px;gap:10px;">
+          <div class="alert alert-danger"><strong>&lt; 1.00</strong><br>No capaz — rechazar lotes</div>
+          <div class="alert alert-warn"><strong>1.00 – 1.33</strong><br>Marginal — mejorar urgente</div>
+          <div class="alert alert-ok"><strong>≥ 1.33</strong><br>Aceptable | ≥1.67 Excelente</div>
+        </div>
+        <p style="font-size:0.87rem;margin-top:12px;">
+          <strong>Cp ≈ Cpk:</strong> proceso centrado. &nbsp;|&nbsp; <strong>Cp &gt;&gt; Cpk:</strong> proceso descentrado, necesita ajuste de media.
+        </p>
+      </div>
+
+      <!-- 8. P/NP -->
+      <div class="card" id="man-pnp">
+        <div class="card-title">8. 🔢 Gráficos P / NP</div>
+        <div class="alert alert-info">Para datos de <strong>atributos</strong> que siguen distribución <strong>Binomial</strong> (pasa/no pasa).</div>
+        <div class="grid-2" style="gap:20px;">
+          <div>
+            <p style="font-size:0.87rem;font-weight:700;">Gráfico P — Fracción defectuosa:</p>
+            <p style="font-size:0.87rem;line-height:2;">
+              Usa cuando el tamaño de subgrupo puede <strong>variar</strong>.<br>
+              • Ingresa los <strong>defectuosos por subgrupo</strong> (ej: 3, 5, 2, 7…).<br>
+              • Ingresa el <strong>tamaño n</strong>: uno solo si es constante, o uno por subgrupo.<br>
+              • Haz clic en ▶ Calcular Gráfico P.<br><br>
+              <strong>Fórmulas:</strong><br>
+              p̄ = Σd / Σn &nbsp;|&nbsp; LSC = p̄ + 3√(p̄q̄/n̄) &nbsp;|&nbsp; LIC = p̄ − 3√(p̄q̄/n̄)
+            </p>
+          </div>
+          <div>
+            <p style="font-size:0.87rem;font-weight:700;">Gráfico NP — Número de defectuosos:</p>
+            <p style="font-size:0.87rem;line-height:2;">
+              Usa cuando el tamaño de subgrupo es <strong>constante</strong> (variación ≤ 25%).<br>
+              • Ingresa los <strong>defectuosos</strong> y el <strong>n constante</strong>.<br>
+              • Haz clic en ▶ Calcular Gráfico NP.<br><br>
+              <strong>Fórmulas:</strong><br>
+              n̄p̄ = media | LSC = n̄p̄ + 3√(n̄p̄(1−p̄)) | LIC = n̄p̄ − 3√(n̄p̄(1−p̄))
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9. C/U -->
+      <div class="card" id="man-cu">
+        <div class="card-title">9. 🔣 Gráficos C / U</div>
+        <div class="alert alert-info">Para <strong>conteo de defectos</strong> (no defectuosos). Siguen distribución de <strong>Poisson</strong>.</div>
+        <div class="grid-2" style="gap:20px;">
+          <div>
+            <p style="font-size:0.87rem;font-weight:700;">Gráfico C — Total de defectos:</p>
+            <p style="font-size:0.87rem;line-height:2;">
+              Área de oportunidad <strong>constante</strong>.<br>
+              Ej: número de manchas en una bandeja de 50 frutas.<br>
+              • Ingresa el conteo de defectos por subgrupo.<br>
+              • <strong>Fórmulas:</strong> c̄ = media | LSC = c̄ + 3√c̄ | LIC = c̄ − 3√c̄
+            </p>
+          </div>
+          <div>
+            <p style="font-size:0.87rem;font-weight:700;">Gráfico U — Defectos por unidad:</p>
+            <p style="font-size:0.87rem;line-height:2;">
+              Área de oportunidad <strong>variable</strong>.<br>
+              Ej: defectos por hoja inspeccionada cuando n varía.<br>
+              • Ingresa defectos y unidades inspeccionadas por subgrupo.<br>
+              • <strong>Fórmulas:</strong> ū = Σc/Σn | LSC = ū + 3√(ū/n̄) | LIC = ū − 3√(ū/n̄)
+            </p>
+          </div>
+        </div>
+        <div class="alert alert-warn" style="margin-top:14px;">
+          <strong>¿C o U? ¿P o NP?</strong><br>
+          C y U → cuentan <em>defectos</em> (una pieza puede tener múltiples defectos).<br>
+          P y NP → cuentan <em>piezas defectuosas</em> (la pieza es buena o mala en total).
+        </div>
+      </div>
+
+      <!-- 10. PARETO -->
+      <div class="card" id="man-pareto">
+        <div class="card-title">10. 📊 Diagrama de Pareto</div>
+        <div class="alert alert-info">Identifica los defectos más frecuentes usando el principio 80/20.</div>
+        <p style="font-size:0.87rem;line-height:2;">
+          <strong>Pasos:</strong><br>
+          1. Haz clic en <strong>🎲 Ejemplo</strong> para ver un ejemplo precargado, o borra y escribe tus datos.<br>
+          2. Por cada tipo de defecto, escribe el <strong>nombre</strong> y su <strong>frecuencia</strong> (número de ocurrencias).<br>
+          3. Usa <strong>➕ Agregar Defecto</strong> para añadir más filas.<br>
+          4. Haz clic en <strong>▶ Generar Pareto</strong>.<br><br>
+          <strong>Cómo leer el diagrama:</strong><br>
+          • Las <strong>barras rosas</strong> = frecuencia de cada defecto (orden descendente).<br>
+          • La <strong>línea azul</strong> = porcentaje acumulado.<br>
+          • Los defectos marcados como <span class="chip chip-danger">80% causas</span> son los más críticos.<br>
+          • Los marcados como <span class="chip chip-ok">20% residual</span> son secundarios.<br>
+          • <strong>Decisión:</strong> ataca primero los defectos que llegan al 80% acumulado.
+        </p>
+      </div>
+
+      <!-- 11. EXPORTAR -->
+      <div class="card" id="man-export">
+        <div class="card-title">11. ⬇ Exportar Excel</div>
+        <p style="font-size:0.87rem;line-height:2;">
+          El botón <strong>⬇ Exportar Excel</strong> en la barra superior genera un archivo <strong>CSV</strong> descargable
+          con la información de trazabilidad y los datos por subgrupo (incluyendo X̄, R y S calculados).<br><br>
+          El archivo se llama <code>AgroStat_CEP_Datos.csv</code> y puede abrirse directamente en Microsoft Excel,
+          Google Sheets o LibreOffice Calc.<br><br>
+          <strong>Tip:</strong> Al abrir en Excel, selecciona el separador <em>coma (,)</em> si el sistema lo solicita.
+        </p>
+      </div>
+
+      <!-- 12. FORMULAS -->
+      <div class="card" id="man-formulas">
+        <div class="card-title">12. 📐 Referencia de Fórmulas</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Gráfico</th><th>Estadístico</th><th>Línea Central</th><th>LSC</th><th>LIC</th></tr></thead>
+            <tbody>
+              <tr><td>X̄–R</td><td>Media X̄</td><td>X̄̄</td><td>X̄̄ + A₂·R̄</td><td>X̄̄ − A₂·R̄</td></tr>
+              <tr><td>X̄–R</td><td>Rango R</td><td>R̄</td><td>D₄·R̄</td><td>D₃·R̄</td></tr>
+              <tr><td>X̄–S</td><td>Media X̄</td><td>X̄̄</td><td>X̄̄ + A₃·S̄</td><td>X̄̄ − A₃·S̄</td></tr>
+              <tr><td>X̄–S</td><td>Desv. S</td><td>S̄</td><td>B₄·S̄</td><td>B₃·S̄</td></tr>
+              <tr><td>P</td><td>Proporción</td><td>p̄</td><td>p̄ + 3√(p̄q̄/n̄)</td><td>p̄ − 3√(p̄q̄/n̄)</td></tr>
+              <tr><td>NP</td><td>Núm. defect.</td><td>n̄p̄</td><td>n̄p̄ + 3√(n̄p̄·q̄)</td><td>n̄p̄ − 3√(n̄p̄·q̄)</td></tr>
+              <tr><td>C</td><td>Conteo</td><td>c̄</td><td>c̄ + 3√c̄</td><td>c̄ − 3√c̄</td></tr>
+              <tr><td>U</td><td>Defectos/u</td><td>ū</td><td>ū + 3√(ū/n̄)</td><td>ū − 3√(ū/n̄)</td></tr>
+              <tr><td>Cp</td><td colspan="4">(LSE − LIE) / (6 · σ̂) donde σ̂ = R̄/d₂</td></tr>
+              <tr><td>Cpk</td><td colspan="4">min[(LSE − X̄̄)/(3σ̂), (X̄̄ − LIE)/(3σ̂)]</td></tr>
+              <tr><td>Pp</td><td colspan="4">(LSE − LIE) / (6 · σ_total)</td></tr>
+              <tr><td>Ppk</td><td colspan="4">min[(LSE − X̄̄)/(3σ_t), (X̄̄ − LIE)/(3σ_t)]</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top:14px;" class="alert alert-info">
+          <strong>Constantes para X̄–R y X̄–S</strong> (según tamaño n):
+          A₂, D₃, D₄, d₂, A₃, B₃, B₄, c₄ son valores tabulados (Montgomery, 2009).
+          La aplicación los aplica automáticamente según el n ingresado en Trazabilidad.
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+</div>
+
+<!-- ===================== JAVASCRIPT ===================== -->
+<script>
+// =====================================================
+// ESTADO GLOBAL
+// =====================================================
+const APP = {
+  theme: 'light',
+  trazabilidad: {},
+  datos: [],       // array de arrays (subgrupos para variables)
+  atrib: [],       // array para atributos
+  n: 5,            // tamaño subgrupo
+  charts: {},      // instancias Chart.js
+};
+
+// Constantes para gráficos de control (Montgomery, tabla de factores)
+const CONST = {
+  // n: [A2, D3, D4, d2, A3, B3, B4, c4]
+  2:  [1.880, 0,     3.267, 1.128, 2.659, 0,     3.267, 0.7979],
+  3:  [1.023, 0,     2.574, 1.693, 1.954, 0,     2.568, 0.8862],
+  4:  [0.729, 0,     2.282, 2.059, 1.628, 0,     2.266, 0.9213],
+  5:  [0.577, 0,     2.114, 2.326, 1.427, 0,     2.089, 0.9400],
+  6:  [0.483, 0,     2.004, 2.534, 1.287, 0.030, 1.970, 0.9515],
+  7:  [0.419, 0.076, 1.924, 2.704, 1.182, 0.118, 1.882, 0.9594],
+  8:  [0.373, 0.136, 1.864, 2.847, 1.099, 0.185, 1.815, 0.9650],
+  9:  [0.337, 0.184, 1.816, 2.970, 1.032, 0.239, 1.761, 0.9693],
+  10: [0.308, 0.223, 1.777, 3.078, 0.975, 0.284, 1.716, 0.9727],
+  12: [0.266, 0.284, 1.716, 3.258, 0.886, 0.354, 1.646, 0.9776],
+  15: [0.223, 0.347, 1.653, 3.472, 0.789, 0.428, 1.572, 0.9823],
+  20: [0.180, 0.415, 1.585, 3.735, 0.680, 0.510, 1.490, 0.9869],
+  25: [0.153, 0.459, 1.541, 3.931, 0.606, 0.565, 1.435, 0.9896],
+};
+
+function getConst(n) {
+  const keys = Object.keys(CONST).map(Number).sort((a,b)=>a-b);
+  let best = keys[0];
+  for (const k of keys) { if (k <= n) best = k; else break; }
+  return CONST[best];
+}
+
+// =====================================================
+// UTILS ESTADÍSTICOS
+// =====================================================
+const mean = arr => arr.reduce((s,v)=>s+v,0)/arr.length;
+const variance = arr => { const m=mean(arr); return arr.reduce((s,v)=>s+(v-m)**2,0)/(arr.length-1); };
+const std  = arr => Math.sqrt(variance(arr));
+const range = arr => Math.max(...arr) - Math.min(...arr);
+const round = (v,d=4) => Math.round(v*10**d)/10**d;
+
+function normalPDF(x, mu, sigma) {
+  return (1/(sigma*Math.sqrt(2*Math.PI))) * Math.exp(-0.5*((x-mu)/sigma)**2);
+}
+function normalCDF(z) {
+  const t=1/(1+0.2316419*Math.abs(z));
+  const d=0.3989423*Math.exp(-z*z/2);
+  const p=d*t*(0.3193815+t*(-0.3565638+t*(1.7814779+t*(-1.8212560+t*1.3302744))));
+  return z>0 ? 1-p : p;
+}
+function zInv(p) {
+  // Beasley-Springer-Moro approximation
+  if (p<=0) return -8; if (p>=1) return 8;
+  const a = [2.50662823884,-18.61500062529,41.39119773534,-25.44106049637];
+  const b = [-8.47351093090,23.08336743743,-21.06224101826,3.13082909833];
+  const c = [0.3374754822726147,0.9761690190917186,0.1607979714918209,0.0276438810333863,0.0038405729373609,0.0003951896511349,0.0000321767881768,0.0000002888167364,0.0000003960315187];
+  const y = p - 0.5;
+  if (Math.abs(y) < 0.42) {
+    const r = y*y;
+    return y*(((a[3]*r+a[2])*r+a[1])*r+a[0])/((((b[3]*r+b[2])*r+b[1])*r+b[0])*r+1);
+  }
+  const r = p < 0.5 ? Math.log(-Math.log(p)) : Math.log(-Math.log(1-p));
+  let x = c[0]+r*(c[1]+r*(c[2]+r*(c[3]+r*(c[4]+r*(c[5]+r*(c[6]+r*(c[7]+r*c[8])))))));
+  return p < 0.5 ? -x : x;
+}
+
+// Shapiro-Wilk approximation (Royston, 1992) — simplified
+function shapiroWilk(data) {
+  const n = data.length;
+  if (n < 3 || n > 5000) return { W: null, p: null };
+  const sorted = [...data].sort((a,b)=>a-b);
+  const m = mean(sorted);
+  const SS = sorted.reduce((s,v)=>s+(v-m)**2,0);
+  // Approximate a_i weights (simplified for n<=50)
+  const c1 = Math.sqrt(n); const c2 = 1;
+  let num = 0;
+  const k = Math.floor(n/2);
+  for (let i=0;i<k;i++) {
+    const mi = zInv((i+1-3/8)/(n+0.25));
+    const aj = mi; // simplified
+    num += aj*(sorted[n-1-i]-sorted[i]);
+  }
+  const W = Math.min(Math.max(num*num/SS, 0.001), 0.9999);
+  // Approximation of p-value using W
+  const mu = -1.2725+1.0521*Math.log(n);
+  const sigma = 1.0308-0.26763*Math.log(n);
+  const z = (Math.log(1-W)-mu)/sigma;
+  const p = 1-normalCDF(z);
+  return { W: round(W,4), p: round(Math.max(p,0.0001),4) };
+}
+
+// =====================================================
+// NAVEGACIÓN
+// =====================================================
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if (btn) btn.classList.add('active');
+  const titles = {
+    dashboard:'Dashboard', trazabilidad:'Trazabilidad', datos:'Ingreso de Datos',
+    xr:'Gráfico X̄ – R', xs:'Gráfico X̄ – S', normalidad:'Normalidad',
+    capacidad:'Capacidad del Proceso', p_np:'Gráficos P / NP',
+    c_u:'Gráficos C / U', pareto:'Diagrama de Pareto',
+    manual:'📖 Manual de Usuario'
+  };
+  document.getElementById('page-title').textContent = titles[id] || id;
+  updateDash();
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+// =====================================================
+// TEMA
+// =====================================================
+function toggleTheme() {
+  APP.theme = APP.theme === 'light' ? 'dark' : 'light';
+  document.body.setAttribute('data-theme', APP.theme);
+  document.getElementById('theme-icon').textContent = APP.theme==='dark' ? '☀️' : '🌙';
+  document.getElementById('theme-label').textContent = APP.theme==='dark' ? 'Modo Claro' : 'Modo Nocturno';
+  // Redraw charts with new colors
+  Object.values(APP.charts).forEach(c=>{ try{c.update();}catch(e){} });
+}
+
+// =====================================================
+// TRAZABILIDAD
+// =====================================================
+function trazChange() {
+  const varSel = document.getElementById('t-variable').value;
+  APP.trazabilidad = {
+    producto: document.getElementById('t-producto').value === 'otro'
+      ? document.getElementById('t-producto-otro').value
+      : document.getElementById('t-producto').value,
+    variable: varSel === 'otro'
+      ? document.getElementById('t-variable-otro').value
+      : varSel,
+    unidad:   document.getElementById('t-unidad').value,
+    analista: document.getElementById('t-analista').value,
+    fecha:    document.getElementById('t-fecha').value,
+    n: parseInt(document.getElementById('t-n').value)||5,
+    k: parseInt(document.getElementById('t-k').value)||25,
+    lote:     document.getElementById('t-lote').value,
+    obs:      document.getElementById('t-obs').value,
+  };
+  APP.n = APP.trazabilidad.n;
+}
+
+function guardarTraz() {
+  trazChange();
+  document.getElementById('traz-msg').innerHTML =
+    `<div class="alert alert-ok">✅ Trazabilidad guardada correctamente. Producto: <strong>${APP.trazabilidad.producto||'—'}</strong></div>`;
+  updateDash();
+}
+
+function limpiarTraz() {
+  ['t-producto','t-variable','t-unidad','t-analista','t-lote','t-obs']
+    .forEach(id=>{ const el=document.getElementById(id); el.tagName==='SELECT'?el.selectedIndex=0:el.value=''; });
+  document.getElementById('t-fecha').value='';
+  document.getElementById('t-n').value=5;
+  document.getElementById('t-k').value=25;
+  document.getElementById('traz-msg').innerHTML='';
+}
+
+// =====================================================
+// INGRESO DE DATOS
+// =====================================================
+function switchTabDatos(tabId, btn) {
+  document.querySelectorAll('#page-datos .tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('#page-datos .tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('datos-'+tabId).classList.add('active');
+  if(btn) btn.classList.add('active');
+}
+
+function cambiarTipoDatos() { /* tipo manejado al cargar */ }
+
+// =====================================================
+// EXCEL / CSV LOADING
+// =====================================================
+let excelRawData = null;
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').style.borderColor='var(--border)';
+  const file = e.dataTransfer.files[0];
+  if (file) cargarArchivoExcel(file);
+}
+
+function cargarArchivoExcel(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+
+  reader.onload = function(e) {
+    try {
+      let data;
+      if (ext === 'csv') {
+        const sep = document.getElementById('csv-sep').value;
+        const txt = e.target.result;
+        const lines = txt.split('\n').map(l=>l.trim()).filter(l=>l);
+        data = lines.map(l=>l.split(sep).map(v=>v.trim()));
+      } else {
+        const wb = XLSX.read(e.target.result, {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        data = XLSX.utils.sheet_to_array(ws);
+      }
+      excelRawData = data;
+      mostrarPreviewExcel(data);
+      document.getElementById('excel-preview-info').innerHTML =
+        `✅ Archivo cargado: <strong>${file.name}</strong> — ${data.length} filas × ${data[0]?.length||0} columnas`;
+    } catch(err) {
+      alert('Error al leer el archivo: ' + err.message);
+    }
+  };
+
+  if (ext === 'csv') reader.readAsText(file, 'UTF-8');
+  else reader.readAsArrayBuffer(file);
+}
+
+function mostrarPreviewExcel(data) {
+  const wrap = document.getElementById('excel-preview-wrap');
+  const previewEl = document.getElementById('excel-preview');
+  wrap.style.display='block';
+  const preview = data.slice(0, 8);
+  let html='<table><thead><tr>';
+  preview[0].forEach((_,i)=>{ html+=`<th>Col ${i+1}</th>`; });
+  html+='</tr></thead><tbody>';
+  preview.forEach((row,ri)=>{
+    html+=`<tr>${row.map(v=>`<td class="mono">${v??''}</td>`).join('')}</tr>`;
+  });
+  if(data.length>8) html+=`<tr><td colspan="${data[0].length}" class="text-muted center">… y ${data.length-8} filas más</td></tr>`;
+  html+='</tbody></table>';
+  previewEl.innerHTML=html;
+}
+
+function confirmarCargaExcel() {
+  if (!excelRawData) { alert('No hay datos cargados aún.'); return; }
+  const tipo = document.getElementById('excel-tipo').value;
+  const hasHeader = document.getElementById('excel-header').value === 'si';
+  let rows = hasHeader ? excelRawData.slice(1) : excelRawData;
+  rows = rows.filter(r=>r.some(v=>v!==''&&v!==null&&v!==undefined));
+
+  if (tipo === 'variables') {
+    APP.datos = rows.map(row=>
+      row.map(v=>parseFloat(String(v).replace(',','.'))).filter(v=>!isNaN(v))
+    ).filter(r=>r.length>0);
+  } else {
+    APP.atrib = rows.map(row=>{
+      const v=parseFloat(String(row[0]).replace(',','.'));
+      return isNaN(v)?null:v;
+    }).filter(v=>v!==null);
+    APP.datos = APP.atrib.map(v=>[v]);
+  }
+
+  renderTabla();
+  document.getElementById('datos-msg').innerHTML =
+    `<div class="alert alert-ok">✅ Datos cargados desde Excel: <strong>${APP.datos.length}</strong> subgrupos.</div>`;
+  updateDash();
+  // Switch to text tab to show table
+  switchTabDatos('tab-texto', document.querySelector('#page-datos .tab-btn'));
+}
+
+
+
+function generarEjemplo() {
+  const tipo = document.getElementById('tipo-datos').value;
+  trazChange();
+  const n = APP.n || 5;
+  const k = APP.trazabilidad.k || 25;
+  let rows = [];
+  if (tipo === 'variables') {
+    const mu = 12.5 + (Math.random()-0.5)*2;
+    const sigma = 0.4 + Math.random()*0.3;
+    for (let i=0;i<k;i++) {
+      let row=[];
+      for (let j=0;j<n;j++) {
+        // Box-Muller
+        const u1=Math.random(), u2=Math.random();
+        const z=Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);
+        row.push(round(mu + sigma*z, 2));
+      }
+      rows.push(row.join(', '));
+    }
+    document.getElementById('paste-area').value = rows.join('\n');
+  } else {
+    // atributos
+    const vals=[];
+    for (let i=0;i<k;i++) vals.push(Math.floor(Math.random()*8));
+    document.getElementById('paste-area').value = vals.join(', ');
+  }
+}
+
+function cargarDesdeTexto() {
+  const txt = document.getElementById('paste-area').value.trim();
+  if (!txt) { alert('No hay datos para cargar.'); return; }
+  trazChange();
+  const tipo = document.getElementById('tipo-datos').value;
+  const lines = txt.split('\n').map(l=>l.trim()).filter(l=>l);
+
+  if (tipo === 'variables') {
+    APP.datos = lines.map(l => l.split(/[,\s;]+/).map(Number).filter(v=>!isNaN(v)));
+    APP.datos = APP.datos.filter(r=>r.length>0);
+  } else {
+    // atributos: single array
+    const vals = txt.split(/[,\s;\n]+/).map(Number).filter(v=>!isNaN(v));
+    APP.atrib = vals;
+    APP.datos = vals.map(v=>[v]);
+  }
+  renderTabla();
+  document.getElementById('datos-msg').innerHTML =
+    `<div class="alert alert-ok">✅ Cargados <strong>${APP.datos.length}</strong> subgrupos.</div>`;
+  updateDash();
+}
+
+function renderTabla() {
+  const wrap = document.getElementById('tabla-datos');
+  if (!APP.datos.length) { wrap.innerHTML='<p class="text-muted center" style="padding:20px;">Sin datos</p>'; return; }
+  const n = APP.datos[0].length;
+  let html = '<table><thead><tr><th>Subgrupo</th>';
+  for (let j=0;j<n;j++) html+=`<th>X${j+1}</th>`;
+  html+='<th>X̄</th><th>R / S</th></tr></thead><tbody>';
+  APP.datos.forEach((row,i)=>{
+    const m=mean(row), r=range(row), s=std(row);
+    html+=`<tr><td class="mono">${i+1}</td>`;
+    row.forEach(v=>{ html+=`<td class="mono">${v}</td>`; });
+    html+=`<td class="mono text-accent">${round(m,3)}</td><td class="mono">${round(n>1?r:s,3)}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  wrap.innerHTML=html;
+}
+
+function agregarSubgrupo() {
+  trazChange();
+  const n=APP.n||5;
+  const newRow=Array(n).fill(0);
+  APP.datos.push(newRow);
+  renderTabla();
+}
+
+function limpiarDatos() {
+  APP.datos=[];
+  APP.atrib=[];
+  document.getElementById('paste-area').value='';
+  renderTabla();
+  document.getElementById('datos-msg').innerHTML='<div class="alert alert-warn">⚠️ Datos eliminados.</div>';
+  updateDash();
+}
+
+// =====================================================
+// DESTROY CHART HELPER
+// =====================================================
+function destroyChart(id) {
+  if (APP.charts[id]) { APP.charts[id].destroy(); delete APP.charts[id]; }
+}
+
+// =====================================================
+// GRAFICO XR
+// =====================================================
+function calcXR() {
+  if (!APP.datos.length) { alert('Primero ingresa datos en "Ingreso de Datos".'); return; }
+  const datos = APP.datos;
+  const n = datos[0].length;
+  const [A2,D3,D4,d2] = getConst(n);
+
+  const xbars = datos.map(r=>mean(r));
+  const ranges = datos.map(r=>range(r));
+  const xdblbar = mean(xbars);
+  const rbar = mean(ranges);
+
+  const UCL_x = xdblbar + A2*rbar;
+  const LCL_x = xdblbar - A2*rbar;
+  const UCL_r = D4*rbar;
+  const LCL_r = D3*rbar;
+
+  const lse = parseFloat(document.getElementById('xr-lse').value)||null;
+  const lie = parseFloat(document.getElementById('xr-lie').value)||null;
+
+  // Out of control detection
+  const oocX = xbars.map((v,i)=>v>UCL_x||v<LCL_x ? i+1 : null).filter(Boolean);
+  const oocR = ranges.map((v,i)=>v>UCL_r||v<LCL_r ? i+1 : null).filter(Boolean);
+  // Rule 2: 9 consecutive on same side
+  const rule2 = checkConsecutiveSide(xbars, xdblbar, 9);
+  // Rule 3: 6 consecutive trend
+  const rule3 = checkTrend(xbars, 6);
+
+  const pfc = new Set([...oocX, ...oocR, ...rule2, ...rule3]).size;
+  APP.pfc = (APP.pfc||0) + pfc;
+
+  // Stats
+  document.getElementById('xr-resultados').style.display='block';
+  document.getElementById('xr-stats').innerHTML = statsBoxes([
+    ['X̄ Ȳ (X doble barra)', round(xdblbar,4), ''],
+    ['R̄ (Rango medio)', round(rbar,4), ''],
+    ['LSC X̄', round(UCL_x,4), '= X̄Ȳ + A₂·R̄'],
+    ['LIC X̄', round(LCL_x,4), '= X̄Ȳ - A₂·R̄'],
+    ['LSC R', round(UCL_r,4), '= D₄·R̄'],
+    ['LIC R', round(LCL_r,4), '= D₃·R̄'],
+    ['σ̂ (estimada)', round(rbar/d2,4), '= R̄/d₂'],
+    ['Puntos fuera', pfc, 'ambos gráficos'],
+  ]);
+
+  // Grafico Xbar
+  destroyChart('xbar'); destroyChart('r');
+  const labels = xbars.map((_,i)=>`SG${i+1}`);
+  APP.charts.xbar = controlChart('chart-xbar', labels, xbars, UCL_x, LCL_x, xdblbar, 'X̄', '#eb2f96');
+  APP.charts.r    = controlChart('chart-r', labels, ranges, UCL_r, LCL_r, rbar, 'R', '#f759ab');
+
+  // Tabla
+  let html='<table><thead><tr><th>SG</th><th>X̄</th><th>R</th><th>Estado X̄</th><th>Estado R</th></tr></thead><tbody>';
+  datos.forEach((row,i)=>{
+    const xi=mean(row), ri=range(row);
+    const stX = (xi>UCL_x||xi<LCL_x)?'<span class="oor">⚠ Fuera</span>':'<span style="color:var(--success)">✓ OK</span>';
+    const stR = (ri>UCL_r||ri<LCL_r)?'<span class="oor">⚠ Fuera</span>':'<span style="color:var(--success)">✓ OK</span>';
+    html+=`<tr><td>${i+1}</td><td class="mono">${round(xi,4)}</td><td class="mono">${round(ri,4)}</td><td>${stX}</td><td>${stR}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('xr-tabla').innerHTML=html;
+
+  // Alertas
+  document.getElementById('xr-alertas').innerHTML = buildAlertas({oocX,oocR,rule2,rule3,UCL_x,LCL_x,xdblbar,rbar,UCL_r,LCL_r,A2,D3,D4,d2,n,lse,lie});
+  updateDash();
+}
+
+// =====================================================
+// GRAFICO XS
+// =====================================================
+function calcXS() {
+  if (!APP.datos.length) { alert('Primero ingresa datos.'); return; }
+  const datos = APP.datos;
+  const n = datos[0].length;
+  const [_,__,___,d2,A3,B3,B4,c4] = getConst(n);
+
+  const xbars = datos.map(r=>mean(r));
+  const stds  = datos.map(r=>std(r));
+  const xdblbar = mean(xbars);
+  const sbar = mean(stds);
+
+  const UCL_x = xdblbar + A3*sbar;
+  const LCL_x = xdblbar - A3*sbar;
+  const UCL_s = B4*sbar;
+  const LCL_s = B3*sbar;
+
+  const oocX = xbars.map((v,i)=>v>UCL_x||v<LCL_x?i+1:null).filter(Boolean);
+  const oocS = stds.map((v,i)=>v>UCL_s||v<LCL_s?i+1:null).filter(Boolean);
+  const pfc = new Set([...oocX,...oocS]).size;
+
+  document.getElementById('xs-resultados').style.display='block';
+  document.getElementById('xs-stats').innerHTML = statsBoxes([
+    ['X̄Ȳ', round(xdblbar,4), ''],
+    ['S̄', round(sbar,4), ''],
+    ['LSC X̄', round(UCL_x,4), '= X̄Ȳ + A₃·S̄'],
+    ['LIC X̄', round(LCL_x,4), '= X̄Ȳ - A₃·S̄'],
+    ['LSC S', round(UCL_s,4), '= B₄·S̄'],
+    ['LIC S', round(LCL_s,4), '= B₃·S̄'],
+    ['σ̂', round(sbar/c4,4), '= S̄/c₄'],
+    ['Puntos fuera', pfc, ''],
+  ]);
+
+  destroyChart('xbars'); destroyChart('s');
+  const labels = xbars.map((_,i)=>`SG${i+1}`);
+  APP.charts.xbars = controlChart('chart-xbar-s', labels, xbars, UCL_x, LCL_x, xdblbar, 'X̄', '#eb2f96');
+  APP.charts.s     = controlChart('chart-s', labels, stds, UCL_s, LCL_s, sbar, 'S', '#f759ab');
+
+  let html='<table><thead><tr><th>SG</th><th>X̄</th><th>S</th><th>Estado X̄</th><th>Estado S</th></tr></thead><tbody>';
+  datos.forEach((row,i)=>{
+    const xi=mean(row),si=std(row);
+    const stX=(xi>UCL_x||xi<LCL_x)?'<span class="oor">⚠ Fuera</span>':'<span style="color:var(--success)">✓ OK</span>';
+    const stS=(si>UCL_s||si<LCL_s)?'<span class="oor">⚠ Fuera</span>':'<span style="color:var(--success)">✓ OK</span>';
+    html+=`<tr><td>${i+1}</td><td class="mono">${round(xi,4)}</td><td class="mono">${round(si,4)}</td><td>${stX}</td><td>${stS}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('xs-tabla').innerHTML=html;
+
+  document.getElementById('xs-alertas').innerHTML='';
+  updateDash();
+}
+
+// =====================================================
+// NORMALIDAD
+// =====================================================
+function calcNormalidad() {
+  if (!APP.datos.length) { alert('Primero ingresa datos.'); return; }
+  const allData = APP.datos.flat();
+  const mu = mean(allData), sigma = std(allData);
+  const sw = shapiroWilk(allData);
+  const alpha = 0.05;
+  const normal = sw.p >= alpha;
+
+  document.getElementById('norm-resultados').style.display='block';
+
+  const resBox = document.getElementById('norm-resultado-box');
+  resBox.innerHTML = `
+    <div class="card-title">🔔 Resultado Prueba Shapiro-Wilk</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div>
+        <p style="font-size:0.85rem;margin-bottom:12px;">
+          <strong>H₀:</strong> Los datos provienen de una distribución normal<br>
+          <strong>H₁:</strong> Los datos NO provienen de una distribución normal<br>
+          <strong>Nivel de significancia:</strong> α = ${alpha}
+        </p>
+        <div style="font-size:0.9rem;line-height:2;">
+          <div>Estadístico W = <strong class="monospace">${sw.W}</strong></div>
+          <div>Valor-p = <strong class="monospace">${sw.p}</strong></div>
+          <div>n = <strong>${allData.length}</strong> observaciones</div>
+        </div>
+      </div>
+      <div class="normal-result ${normal?'alert-ok':'alert-danger'}" style="${normal?'background:#f6ffed;border:2px solid #95de64':'background:#fff2f0;border:2px solid #ffa39e'}">
+        <div style="font-size:2rem;">${normal?'✅':'❌'}</div>
+        <div style="font-size:1rem;font-weight:700;margin-top:8px;">
+          ${normal?'DATOS NORMALES':'DATOS NO NORMALES'}
+        </div>
+        <div style="font-size:0.82rem;margin-top:6px;">
+          p = ${sw.p} ${normal?'≥':'<'} α = ${alpha}<br>
+          ${normal?'No se rechaza H₀':'Se rechaza H₀'}
+        </div>
+      </div>
+    </div>`;
+
+  // Stats descriptivas
+  const sorted = [...allData].sort((a,b)=>a-b);
+  const q1 = sorted[Math.floor(allData.length*0.25)];
+  const med= sorted[Math.floor(allData.length*0.5)];
+  const q3 = sorted[Math.floor(allData.length*0.75)];
+  const sk  = allData.reduce((s,v)=>s+((v-mu)/sigma)**3,0)/allData.length;
+  const ku  = allData.reduce((s,v)=>s+((v-mu)/sigma)**4,0)/allData.length-3;
+  document.getElementById('norm-stats').innerHTML = statsBoxes([
+    ['Media (μ)', round(mu,4), ''],
+    ['Desv. Est. (σ)', round(sigma,4), ''],
+    ['Mediana', round(med,4), ''],
+    ['Q1 — Q3', `${round(q1,3)} — ${round(q3,3)}`, ''],
+    ['Mínimo', round(Math.min(...allData),4), ''],
+    ['Máximo', round(Math.max(...allData),4), ''],
+    ['Asimetría', round(sk,4), sk>0?'Positiva':sk<0?'Negativa':'Simétrica'],
+    ['Curtosis', round(ku,4), ku>0?'Leptocúrtica':ku<0?'Platicúrtica':'Mesocúrtica'],
+  ]);
+
+  // Histograma
+  destroyChart('hist');
+  const bins = Math.max(8, Math.round(Math.sqrt(allData.length)));
+  const minV = Math.min(...allData), maxV = Math.max(...allData);
+  const bw = (maxV-minV)/bins;
+  const freqs = Array(bins).fill(0);
+  allData.forEach(v=>{
+    let b = Math.floor((v-minV)/bw);
+    if (b>=bins) b=bins-1;
+    freqs[b]++;
+  });
+  const binLabels = freqs.map((_,i)=>round(minV+i*bw+bw/2,2));
+
+  // Normal curve overlay
+  const normCurve = binLabels.map(x=>normalPDF(x,mu,sigma)*allData.length*bw);
+
+  APP.charts.hist = new Chart(document.getElementById('chart-hist'), {
+    data: {
+      labels: binLabels,
+      datasets: [
+        { type:'bar', label:'Frecuencia', data:freqs, backgroundColor:'rgba(235,47,150,0.5)', borderColor:'#eb2f96', borderWidth:1 },
+        { type:'line', label:'Curva Normal', data:normCurve, borderColor:'#1890ff', borderWidth:2.5, pointRadius:0, tension:0.4, fill:false },
+      ]
+    },
+    options: { responsive:true, plugins:{ legend:{display:true} }, scales:{ y:{beginAtZero:true} } }
+  });
+
+  // Q-Q plot
+  destroyChart('qq');
+  const n = allData.length;
+  const qqPoints = sorted.map((v,i)=>({
+    x: zInv((i+0.5)/n),
+    y: v
+  }));
+  const minZ = qqPoints[0].x, maxZ = qqPoints[n-1].x;
+  const linePoints = [{x:minZ, y:mu+sigma*minZ}, {x:maxZ, y:mu+sigma*maxZ}];
+  APP.charts.qq = new Chart(document.getElementById('chart-qq'), {
+    type:'scatter',
+    data:{
+      datasets:[
+        { label:'Datos', data:qqPoints, backgroundColor:'rgba(235,47,150,0.7)', pointRadius:4 },
+        { type:'line', label:'Línea Normal', data:linePoints, borderColor:'#1890ff', borderWidth:2, pointRadius:0 },
+      ]
+    },
+    options:{ responsive:true, scales:{ x:{title:{display:true,text:'Cuantiles teóricos'}}, y:{title:{display:true,text:'Cuantiles observados'}} } }
+  });
+  updateDash();
+}
+
+// =====================================================
+// CAPACIDAD
+// =====================================================
+function calcCapacidad() {
+  if (!APP.datos.length) { alert('Primero ingresa datos.'); return; }
+  const datos = APP.datos;
+  const n = datos[0].length;
+  const [A2,D3,D4,d2] = getConst(n);
+  const allData = datos.flat();
+  const mu = mean(allData), sigmaTotal = std(allData);
+  const rbar = mean(datos.map(r=>range(r)));
+  const sigmaCorto = rbar/d2;
+
+  const lse = parseFloat(document.getElementById('cap-lse').value);
+  const lie = parseFloat(document.getElementById('cap-lie').value);
+  const obj = parseFloat(document.getElementById('cap-obj').value)||mu;
+
+  if (isNaN(lse)||isNaN(lie)) { alert('Ingresa LSE y LIE para calcular capacidad.'); return; }
+
+  const tol = lse - lie;
+  const Cp   = tol/(6*sigmaCorto);
+  const Cpk  = Math.min((lse-mu)/(3*sigmaCorto), (mu-lie)/(3*sigmaCorto));
+  const Pp   = tol/(6*sigmaTotal);
+  const Ppk  = Math.min((lse-mu)/(3*sigmaTotal), (mu-lie)/(3*sigmaTotal));
+  const Cpm  = tol/(6*Math.sqrt(sigmaCorto**2+(mu-obj)**2));
+
+  document.getElementById('cap-resultados').style.display='block';
+  const chip = v => v>=1.67?'chip-ok':v>=1.33?'chip-warn':'chip-danger';
+  const interp = v => v>=1.67?'Excelente':v>=1.33?'Aceptable':v>=1.0?'Marginal':'No capaz';
+
+  document.getElementById('cap-indices').innerHTML=`
+    <div class="stat-box"><div class="stat-label">Cp (Corto Plazo)</div>
+      <div class="stat-val">${round(Cp,4)}</div>
+      <div class="stat-sub"><span class="chip ${chip(Cp)}">${interp(Cp)}</span></div></div>
+    <div class="stat-box"><div class="stat-label">Cpk (Centrado C.P.)</div>
+      <div class="stat-val">${round(Cpk,4)}</div>
+      <div class="stat-sub"><span class="chip ${chip(Cpk)}">${interp(Cpk)}</span></div></div>
+    <div class="stat-box"><div class="stat-label">Pp (Largo Plazo)</div>
+      <div class="stat-val">${round(Pp,4)}</div>
+      <div class="stat-sub"><span class="chip ${chip(Pp)}">${interp(Pp)}</span></div></div>
+    <div class="stat-box"><div class="stat-label">Ppk (Centrado L.P.)</div>
+      <div class="stat-val">${round(Ppk,4)}</div>
+      <div class="stat-sub"><span class="chip ${chip(Ppk)}">${interp(Ppk)}</span></div></div>
+  `;
+
+  // Distribución del proceso
+  destroyChart('cap');
+  const xs=[];
+  const rangeW = Math.max(sigmaTotal*4, (lse-lie)*0.7);
+  const step = rangeW*2/200;
+  for(let x=mu-rangeW; x<=mu+rangeW; x+=step) xs.push(x);
+  const yNorm = xs.map(x=>normalPDF(x,mu,sigmaCorto));
+  const yLong = xs.map(x=>normalPDF(x,mu,sigmaTotal));
+  const maxY = Math.max(...yNorm)*1.1;
+  APP.charts.cap = new Chart(document.getElementById('chart-cap'),{
+    type:'line',
+    data:{
+      labels:xs.map(v=>round(v,2)),
+      datasets:[
+        {label:'Proceso (σ corto)',data:yNorm,borderColor:'#eb2f96',borderWidth:2.5,pointRadius:0,fill:true,backgroundColor:'rgba(235,47,150,0.15)',tension:0.4},
+        {label:'Proceso (σ total)',data:yLong,borderColor:'#1890ff',borderWidth:2,pointRadius:0,fill:false,tension:0.4},
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{display:true},
+        annotation:{annotations:{
+          lse:{type:'line',xMin:lse,xMax:lse,borderColor:'red',borderWidth:2,label:{content:'LSE',display:true}},
+          lie:{type:'line',xMin:lie,xMax:lie,borderColor:'red',borderWidth:2,label:{content:'LIE',display:true}},
+        }}
+      },
+      scales:{y:{display:false},x:{ticks:{maxTicksLimit:10}}}
+    }
+  });
+
+  // Interpretación
+  const capOk = Cp>=1.33&&Cpk>=1.33&&Pp>=1.33&&Ppk>=1.33;
+  const centrado = Math.abs(Cp-Cpk)<0.1;
+  document.getElementById('cap-interpretacion').innerHTML=`
+    <div class="grid-2">
+      <div>
+        <p style="font-size:0.86rem;line-height:1.8;"><strong>Fórmulas usadas:</strong><br>
+        Cp = (LSE−LIE)/(6σ̂) = (${lse}−${lie})/(6×${round(sigmaCorto,4)}) = <strong>${round(Cp,4)}</strong><br>
+        Cpk = min[(LSE−X̄)/(3σ̂), (X̄−LIE)/(3σ̂)] = <strong>${round(Cpk,4)}</strong><br>
+        Pp = (LSE−LIE)/(6σ_total) = <strong>${round(Pp,4)}</strong><br>
+        Ppk = min[(LSE−X̄)/(3σ_t), (X̄−LIE)/(3σ_t)] = <strong>${round(Ppk,4)}</strong><br>
+        σ̂(corto) = R̄/d₂ = ${round(rbar,4)}/${round(d2,4)} = <strong>${round(sigmaCorto,4)}</strong><br>
+        σ(total) = <strong>${round(sigmaTotal,4)}</strong>
+        </p>
+      </div>
+      <div>
+        <div class="alert ${capOk?'alert-ok':'alert-danger'}">
+          <strong>${capOk?'✅ Proceso CAPAZ':'❌ Proceso NO CAPAZ'}</strong><br>
+          ${centrado?'✅ Proceso CENTRADO':'⚠️ Proceso DESCENTRADO (Cp ≠ Cpk)'}<br>
+          <br>
+          <strong>Referencia:</strong><br>
+          &lt; 1.00 → No capaz (rechazar)<br>
+          1.00–1.33 → Marginal (mejorar)<br>
+          1.33–1.67 → Aceptable<br>
+          ≥ 1.67 → Excelente
+        </div>
+      </div>
+    </div>`;
+  updateDash();
+}
+
+// =====================================================
+// GRAFICO P
+// =====================================================
+function calcP() {
+  const dStr = document.getElementById('p-defectuosos').value;
+  const nStr = document.getElementById('p-n').value;
+  if(!dStr){alert('Ingresa los defectuosos.');return;}
+  const def = dStr.split(/[,\s;]+/).map(Number).filter(v=>!isNaN(v));
+  const ns = nStr.split(/[,\s;]+/).map(Number).filter(v=>!isNaN(v));
+  const nArr = ns.length===1 ? Array(def.length).fill(ns[0]) : ns;
+  const k = def.length;
+  const ps = def.map((d,i)=>d/nArr[i]);
+  const pbar = def.reduce((a,b)=>a+b,0)/nArr.reduce((a,b)=>a+b,0);
+  const nbar = mean(nArr);
+  const UCL_p = pbar + 3*Math.sqrt(pbar*(1-pbar)/nbar);
+  const LCL_p = Math.max(0, pbar - 3*Math.sqrt(pbar*(1-pbar)/nbar));
+  const ooc = ps.map((v,i)=>v>UCL_p||v<LCL_p?i+1:null).filter(Boolean);
+
+  document.getElementById('p-resultados').style.display='block';
+  document.getElementById('p-stats').innerHTML = statsBoxes([
+    ['p̄ (prop. media)', round(pbar,4), ''],
+    ['n̄ (tam. medio)', round(nbar,2), ''],
+    ['LSC P', round(UCL_p,4), '= p̄ + 3√(p̄q̄/n̄)'],
+    ['LIC P', round(LCL_p,4), '= p̄ − 3√(p̄q̄/n̄)'],
+    ['Subgrupos', k, ''],
+    ['Puntos fuera', ooc.length, ''],
+  ]);
+
+  destroyChart('p');
+  APP.charts.p = controlChart('chart-p', ps.map((_,i)=>`SG${i+1}`), ps, UCL_p, LCL_p, pbar, 'Proporción P', '#eb2f96');
+
+  let html='<table><thead><tr><th>SG</th><th>n</th><th>Defectuosos</th><th>p</th><th>LSC</th><th>LIC</th><th>Estado</th></tr></thead><tbody>';
+  def.forEach((d,i)=>{
+    const pi=ps[i];
+    const ucl=pbar+3*Math.sqrt(pbar*(1-pbar)/nArr[i]);
+    const lcl=Math.max(0,pbar-3*Math.sqrt(pbar*(1-pbar)/nArr[i]));
+    const st=(pi>ucl||pi<lcl)?'<span class="oor">⚠ Fuera</span>':'<span style="color:var(--success)">✓ OK</span>';
+    html+=`<tr><td>${i+1}</td><td>${nArr[i]}</td><td>${d}</td><td class="mono">${round(pi,4)}</td><td class="mono">${round(ucl,4)}</td><td class="mono">${round(lcl,4)}</td><td>${st}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('p-tabla').innerHTML=html;
+  document.getElementById('p-alertas').innerHTML = ooc.length?
+    `<div class="alert alert-danger">⚠️ Subgrupos fuera de control: ${ooc.join(', ')}. Investigar causas especiales.</div>`:
+    `<div class="alert alert-ok">✅ Proceso bajo control estadístico.</div>`;
+}
+
+// =====================================================
+// GRAFICO NP
+// =====================================================
+function calcNP() {
+  const dStr = document.getElementById('np-defectuosos').value;
+  const n = parseFloat(document.getElementById('np-n').value)||50;
+  if(!dStr){alert('Ingresa los defectuosos.');return;}
+  const def = dStr.split(/[,\s;]+/).map(Number).filter(v=>!isNaN(v));
+  const npbar = mean(def);
+  const pbar = npbar/n;
+  const UCL = npbar + 3*Math.sqrt(npbar*(1-pbar));
+  const LCL = Math.max(0, npbar - 3*Math.sqrt(npbar*(1-pbar)));
+  const ooc = def.map((v,i)=>v>UCL||v<LCL?i+1:null).filter(Boolean);
+
+  document.getElementById('np-resultados').style.display='block';
+  document.getElementById('np-stats').innerHTML = statsBoxes([
+    ['n̄p̄ (media)', round(npbar,4), ''],
+    ['p̄', round(pbar,4), '= n̄p̄/n'],
+    ['LSC NP', round(UCL,4), '= n̄p̄ + 3√(n̄p̄(1−p̄))'],
+    ['LIC NP', round(LCL,4), '= n̄p̄ − 3√(n̄p̄(1−p̄))'],
+    ['n (constante)', n, ''],
+    ['Puntos fuera', ooc.length, ''],
+  ]);
+  destroyChart('np');
+  APP.charts.np = controlChart('chart-np', def.map((_,i)=>`SG${i+1}`), def, UCL, LCL, npbar, 'NP', '#f759ab');
+  document.getElementById('np-alertas').innerHTML = ooc.length?
+    `<div class="alert alert-danger">⚠️ Subgrupos fuera de control: ${ooc.join(', ')}.</div>`:
+    `<div class="alert alert-ok">✅ Proceso bajo control estadístico.</div>`;
+}
+
+// =====================================================
+// GRAFICO C
+// =====================================================
+function calcC() {
+  const dStr = document.getElementById('c-defectos').value;
+  if(!dStr){alert('Ingresa los defectos.');return;}
+  const def = dStr.split(/[,\s;]+/).map(Number).filter(v=>!isNaN(v));
+  const cbar = mean(def);
+  const UCL = cbar + 3*Math.sqrt(cbar);
+  const LCL = Math.max(0, cbar - 3*Math.sqrt(cbar));
+  const ooc = def.map((v,i)=>v>UCL||v<LCL?i+1:null).filter(Boolean);
+
+  document.getElementById('c-resultados').style.display='block';
+  document.getElementById('c-stats').innerHTML = statsBoxes([
+    ['c̄ (media defectos)', round(cbar,4), ''],
+    ['LSC C', round(UCL,4), '= c̄ + 3√c̄'],
+    ['LIC C', round(LCL,4), '= c̄ − 3√c̄'],
+    ['Subgrupos', def.length, ''],
+    ['Total defectos', def.reduce((a,b)=>a+b,0), ''],
+    ['Puntos fuera', ooc.length, ''],
+  ]);
+  destroyChart('c');
+  APP.charts.c = controlChart('chart-c', def.map((_,i)=>`SG${i+1}`), def, UCL, LCL, cbar, 'Defectos C', '#eb2f96');
+  document.getElementById('c-alertas').innerHTML = ooc.length?
+    `<div class="alert alert-danger">⚠️ Subgrupos fuera de control: ${ooc.join(', ')}.</div>`:
+    `<div class="alert alert-ok">✅ Proceso bajo control estadístico.</div>`;
+}
+
+// =====================================================
+// GRAFICO U
+// =====================================================
+function calcU() {
+  const dStr = document.getElementById('u-defectos').value;
+  const nStr = document.getElementById('u-n').value;
+  if(!dStr||!nStr){alert('Ingresa defectos y unidades.');return;}
+  const def = dStr.split(/[,\s;]+/).map(Number).filter(v=>!isNaN(v));
+  const ns  = nStr.split(/[,\s;]+/).map(Number).filter(v=>!isNaN(v));
+  const nArr = ns.length===1 ? Array(def.length).fill(ns[0]) : ns;
+  const us = def.map((d,i)=>d/nArr[i]);
+  const ubar = def.reduce((a,b)=>a+b,0)/nArr.reduce((a,b)=>a+b,0);
+  const nbar = mean(nArr);
+  const UCL = ubar + 3*Math.sqrt(ubar/nbar);
+  const LCL = Math.max(0, ubar - 3*Math.sqrt(ubar/nbar));
+  const ooc = us.map((v,i)=>v>UCL||v<LCL?i+1:null).filter(Boolean);
+
+  document.getElementById('u-resultados').style.display='block';
+  document.getElementById('u-stats').innerHTML = statsBoxes([
+    ['ū (defectos/unidad)', round(ubar,4), ''],
+    ['n̄', round(nbar,2), ''],
+    ['LSC U', round(UCL,4), '= ū + 3√(ū/n̄)'],
+    ['LIC U', round(LCL,4), '= ū − 3√(ū/n̄)'],
+    ['Subgrupos', def.length, ''],
+    ['Puntos fuera', ooc.length, ''],
+  ]);
+  destroyChart('u');
+  APP.charts.u = controlChart('chart-u', us.map((_,i)=>`SG${i+1}`), us, UCL, LCL, ubar, 'U', '#f759ab');
+  document.getElementById('u-alertas').innerHTML = ooc.length?
+    `<div class="alert alert-danger">⚠️ Subgrupos fuera de control: ${ooc.join(', ')}.</div>`:
+    `<div class="alert alert-ok">✅ Proceso bajo control estadístico.</div>`;
+}
+
+// =====================================================
+// PARETO
+// =====================================================
+function initPareto() {
+  const container = document.getElementById('pareto-rows');
+  // Clear except header
+  const header = container.firstElementChild;
+  container.innerHTML=''; container.appendChild(header);
+  for(let i=0;i<6;i++) addParetoRow();
+}
+
+function addParetoRow() {
+  const div = document.createElement('div');
+  div.className='grid-2';
+  div.style.gap='10px'; div.style.marginBottom='8px';
+  div.innerHTML=`
+    <input type="text" class="form-input pareto-causa" placeholder="Tipo de defecto / causa">
+    <div style="display:flex;gap:8px;">
+      <input type="number" class="form-input pareto-freq" placeholder="0" min="0" style="flex:1;">
+      <button class="btn btn-danger btn-sm" onclick="this.parentElement.parentElement.remove()">✕</button>
+    </div>`;
+  document.getElementById('pareto-rows').appendChild(div);
+}
+
+function cargarEjemploPareto() {
+  const container = document.getElementById('pareto-rows');
+  const header = container.firstElementChild;
+  container.innerHTML=''; container.appendChild(header);
+  const ejemplos=[
+    ['Manchas / decoloración',42],['Daños mecánicos (golpes)',28],
+    ['Plagas / insectos',18],['Pudrición',12],
+    ['Defectos de tamaño',8],['Material extraño',5],
+    ['Falta de madurez',4],['Otros',3],
+  ];
+  ejemplos.forEach(([c,f])=>{
+    const div=document.createElement('div');
+    div.className='grid-2'; div.style.gap='10px'; div.style.marginBottom='8px';
+    div.innerHTML=`
+      <input type="text" class="form-input pareto-causa" value="${c}">
+      <div style="display:flex;gap:8px;">
+        <input type="number" class="form-input pareto-freq" value="${f}" min="0" style="flex:1;">
+        <button class="btn btn-danger btn-sm" onclick="this.parentElement.parentElement.remove()">✕</button>
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+function calcPareto() {
+  const causas = [...document.querySelectorAll('.pareto-causa')].map(el=>el.value.trim());
+  const freqs  = [...document.querySelectorAll('.pareto-freq')].map(el=>parseFloat(el.value)||0);
+  if(!causas.length||freqs.every(f=>f===0)){alert('Ingresa al menos un defecto con frecuencia > 0.');return;}
+
+  // Sort descending
+  const data = causas.map((c,i)=>({c,f:freqs[i]})).filter(d=>d.f>0).sort((a,b)=>b.f-a.f);
+  const total = data.reduce((s,d)=>s+d.f,0);
+  let acum=0;
+  data.forEach(d=>{ acum+=d.f; d.pct=round(d.f/total*100,1); d.acum=round(acum/total*100,1); });
+
+  document.getElementById('pareto-resultados').style.display='block';
+  destroyChart('pareto');
+  APP.charts.pareto = new Chart(document.getElementById('chart-pareto'),{
+    data:{
+      labels: data.map(d=>d.c),
+      datasets:[
+        {type:'bar',label:'Frecuencia',data:data.map(d=>d.f),backgroundColor:'rgba(235,47,150,0.7)',borderColor:'#eb2f96',borderWidth:1,yAxisID:'y'},
+        {type:'line',label:'% Acumulado',data:data.map(d=>d.acum),borderColor:'#1890ff',borderWidth:2.5,pointRadius:4,yAxisID:'y1',fill:false,tension:0},
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{display:true}},
+      scales:{
+        y:{beginAtZero:true,title:{display:true,text:'Frecuencia'}},
+        y1:{position:'right',min:0,max:100,title:{display:true,text:'% Acumulado'},grid:{drawOnChartArea:false}},
+      }
+    }
+  });
+
+  // Tabla
+  let html='<table><thead><tr><th>#</th><th>Defecto / Causa</th><th>Frecuencia</th><th>% Relativo</th><th>% Acumulado</th><th>Zona 80/20</th></tr></thead><tbody>';
+  data.forEach((d,i)=>{
+    const zona = d.acum<=80?'<span class="chip chip-danger">80% causas</span>':'<span class="chip chip-ok">20% residual</span>';
+    html+=`<tr><td>${i+1}</td><td>${d.c}</td><td class="mono">${d.f}</td><td class="mono">${d.pct}%</td><td class="mono">${d.acum}%</td><td>${zona}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('pareto-tabla').innerHTML=html;
+}
+
+// =====================================================
+// CONTROL CHART FACTORY
+// =====================================================
+function controlChart(canvasId, labels, data, UCL, LCL, CL, label, color) {
+  const ooc = data.map(v=>v>UCL||v<LCL?v:null);
+  return new Chart(document.getElementById(canvasId), {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {
+          label,
+          data,
+          borderColor: color,
+          borderWidth: 2,
+          pointRadius: data.map((v,i)=>ooc[i]!==null?7:4),
+          pointBackgroundColor: data.map((v,i)=>ooc[i]!==null?'#ff4d4f':color),
+          pointBorderColor: data.map((v,i)=>ooc[i]!==null?'#ff4d4f':color),
+          tension:0.3,
+          fill:false,
+        },
+        {label:'LSC', data:Array(labels.length).fill(UCL), borderColor:'#ff4d4f', borderWidth:1.5, borderDash:[6,3], pointRadius:0, fill:false},
+        {label:'LC',  data:Array(labels.length).fill(CL),  borderColor:'#52c41a', borderWidth:1.5, borderDash:[2,2], pointRadius:0, fill:false},
+        {label:'LIC', data:Array(labels.length).fill(LCL), borderColor:'#ff4d4f', borderWidth:1.5, borderDash:[6,3], pointRadius:0, fill:false},
+      ]
+    },
+    options:{
+      responsive:true,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:true},
+        tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${round(ctx.parsed.y,4)}`}},
+      },
+      scales:{y:{ticks:{callback:v=>round(v,3)}}}
+    }
+  });
+}
+
+// =====================================================
+// REGLAS DE CONTROL (Pruebas Western Electric)
+// =====================================================
+function checkConsecutiveSide(data, CL, n) {
+  // 9+ consecutive on same side
+  const ooc=[];
+  let count=0, side=0;
+  data.forEach((v,i)=>{
+    const s = v>CL?1:v<CL?-1:0;
+    if(s===side&&s!==0) { count++; if(count>=n) ooc.push(i+1); }
+    else { count=1; side=s; }
+  });
+  return ooc;
+}
+
+function checkTrend(data, n) {
+  // 6+ consecutive increasing or decreasing
+  const ooc=[];
+  let count=1, dir=0;
+  for(let i=1;i<data.length;i++){
+    const d=data[i]-data[i-1];
+    const newDir=d>0?1:d<0?-1:0;
+    if(newDir===dir&&newDir!==0) { count++; if(count>=n) ooc.push(i+1); }
+    else { count=2; dir=newDir; }
+  }
+  return ooc;
+}
+
+// =====================================================
+// ALERTAS XBAR-R
+// =====================================================
+function buildAlertas({oocX,oocR,rule2,rule3,UCL_x,LCL_x,xdblbar,rbar,UCL_r,LCL_r,A2,D3,D4,d2,n,lse,lie}) {
+  let html='';
+  if(oocX.length||oocR.length||rule2.length||rule3.length) {
+    html+=`<div class="alert alert-danger"><strong>⚠️ Causas Especiales Detectadas:</strong><br>`;
+    if(oocX.length) html+=`• Prueba 1 (X̄ fuera de límites): Subgrupos ${oocX.join(', ')}<br>`;
+    if(oocR.length) html+=`• Gráfico R fuera de límites: Subgrupos ${oocR.join(', ')}<br>`;
+    if(rule2.length) html+=`• Prueba 2 (9 consecutivos mismo lado): Subgrupos ~${rule2.slice(-3).join(', ')}<br>`;
+    if(rule3.length) html+=`• Prueba 3 (6 consecutivos en tendencia): Subgrupos ~${rule3.slice(-3).join(', ')}<br>`;
+    html+='</div>';
+  } else {
+    html+=`<div class="alert alert-ok">✅ Proceso bajo control estadístico. No se detectaron causas especiales de variación.</div>`;
+  }
+  html+=`<div class="card"><div class="card-title">📐 Parámetros Calculados</div>
+    <p class="text-muted" style="font-size:0.83rem;line-height:2;">
+    Constantes para n=${n}: A₂=${round(A2,3)} | D₃=${D3} | D₄=${round(D4,3)} | d₂=${round(d2,3)}<br>
+    X̄Ȳ = ${round(xdblbar,4)} | R̄ = ${round(rbar,4)}<br>
+    LSC X̄ = X̄Ȳ + A₂·R̄ = ${round(xdblbar,4)} + ${A2}×${round(rbar,4)} = <strong>${round(UCL_x,4)}</strong><br>
+    LIC X̄ = X̄Ȳ − A₂·R̄ = <strong>${round(LCL_x,4)}</strong><br>
+    LSC R = D₄·R̄ = ${round(D4,3)}×${round(rbar,4)} = <strong>${round(UCL_r,4)}</strong><br>
+    LIC R = D₃·R̄ = <strong>${round(LCL_r,4)}</strong>
+    </p></div>`;
+  return html;
+}
+
+// =====================================================
+// STATS BOXES HTML
+// =====================================================
+function statsBoxes(items) {
+  return items.map(([label,val,sub])=>`
+    <div class="stat-box">
+      <div class="stat-label">${label}</div>
+      <div class="stat-val">${val}</div>
+      <div class="stat-sub">${sub}</div>
+    </div>`).join('');
+}
+
+// =====================================================
+// TABS
+// =====================================================
+function switchTab(group, tabId, btn) {
+  document.querySelectorAll(`#page-${group} .tab-pane`).forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll(`#page-${group} .tab-btn`).forEach(b=>b.classList.remove('active'));
+  document.getElementById(`${group}-${tabId}`).classList.add('active');
+  btn.classList.add('active');
+}
+
+// =====================================================
+// DASHBOARD UPDATE
+// =====================================================
+function updateDash() {
+  document.getElementById('d-subgrupos').textContent = APP.datos.length;
+  document.getElementById('d-producto').textContent = APP.trazabilidad.producto||'—';
+  document.getElementById('d-variable').textContent = APP.trazabilidad.variable||'—';
+
+  const oocTotal = Object.values(APP.charts).reduce((s,c)=>{
+    if(!c.data?.datasets?.[0]?.data) return s;
+    return s;
+  }, 0);
+  document.getElementById('d-pfc').textContent = '—';
+
+  if(APP.datos.length>0) {
+    document.getElementById('d-estado').textContent = '⚙️';
+    document.getElementById('d-estado-sub').textContent = 'Datos cargados';
+  }
+
+  // Trazabilidad summary
+  const t = APP.trazabilidad;
+  if(t.producto||t.analista) {
+    document.getElementById('dash-trazabilidad').innerHTML=`
+      <div class="grid-2" style="gap:16px;font-size:0.85rem;line-height:2;">
+        <div>
+          <div><strong>Producto:</strong> ${t.producto||'—'}</div>
+          <div><strong>Variable:</strong> ${t.variable||'—'} ${t.unidad?'('+t.unidad+')':''}</div>
+          <div><strong>Analista:</strong> ${t.analista||'—'}</div>
+          <div><strong>Lote:</strong> ${t.lote||'—'}</div>
+        </div>
+        <div>
+          <div><strong>Fecha:</strong> ${t.fecha||'—'}</div>
+          <div><strong>n (subgrupo):</strong> ${t.n||'—'}</div>
+          <div><strong>k (subgrupos):</strong> ${t.k||'—'}</div>
+          <div><strong>Observaciones:</strong> ${t.obs||'—'}</div>
+        </div>
+      </div>`;
+  }
+}
+
+// =====================================================
+// EXPORT EXCEL (CSV)
+// =====================================================
+function exportarExcel() {
+  if(!APP.datos.length) { alert('No hay datos para exportar.'); return; }
+  const t = APP.trazabilidad;
+  let csv = 'AgroStat CEP - Exportación de Datos\n\n';
+  csv += 'TRAZABILIDAD\n';
+  csv += `Producto,${t.producto||''}\nVariable,${t.variable||''}\nUnidad,${t.unidad||''}\n`;
+  csv += `Analista,${t.analista||''}\nFecha,${t.fecha||''}\nLote,${t.lote||''}\n\n`;
+
+  csv += 'DATOS POR SUBGRUPO\n';
+  const n=APP.datos[0].length;
+  const header=['Subgrupo',...Array.from({length:n},(_,i)=>`X${i+1}`),'Media','Rango','Desv.Est.'].join(',');
+  csv += header+'\n';
+  APP.datos.forEach((row,i)=>{
+    csv += [i+1,...row,round(mean(row),4),round(range(row),4),round(std(row),4)].join(',')+'\n';
+  });
+
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='AgroStat_CEP_Datos.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// =====================================================
+// INIT
+// =====================================================
+document.addEventListener('DOMContentLoaded', ()=>{
+  // Set default datetime
+  const now = new Date();
+  const local = new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  document.getElementById('t-fecha').value = local;
+
+  // Init Pareto rows
+  initPareto();
+
+  // Init render tabla
+  renderTabla();
+  updateDash();
+});
+</script>
+</body>
+</html>
